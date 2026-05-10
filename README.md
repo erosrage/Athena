@@ -13,18 +13,19 @@ flowchart TD
     CC["Claude Code"]:::claude
     CLI["proj CLI"]:::entry
     CC -->|"slash commands + MCP tools"| CLI
-    CLI --> NEW["proj new"]:::stage
-    CLI --> PLAN["proj plan"]:::stage
-    CLI --> DEV["proj dev"]:::stage
-    CLI --> BUILD["proj build"]:::stage
-    CLI --> RELEASE["proj release"]:::stage
+    CLI --> PLAN["① proj plan"]:::stage
+    CLI --> NEW["② proj new"]:::stage
+    CLI --> DEV["③ proj dev"]:::stage
+    CLI --> BUILD["④ proj build"]:::stage
+    CLI --> RELEASE["⑤ proj release"]:::stage
     CLI --> STATUS["proj status"]:::stage
-    NEW --> S["Scaffold + git init + proj.yaml"]:::action
-    NEW --> CG["Generate CLAUDE.md + .claude/"]:::claude
-    NEW --> J1["Create or link Jira Epic"]:::jira
     PLAN --> LLM["Claude API solutioning loop"]:::llm
     LLM --> PM["Write PLAN.md"]:::action
     LLM --> J4["Generate + create Jira stories"]:::jira
+    PLAN -->|"scaffold now?"| NEW
+    NEW --> S["Scaffold + git init + proj.yaml"]:::action
+    NEW --> CG["Generate CLAUDE.md + .claude/"]:::claude
+    NEW --> J1["Create or link Jira Epic"]:::jira
     DEV --> ENV["Load secrets + run dev server"]:::action
     BUILD --> PUSH["docker build + push registry"]:::action
     RELEASE --> VER["Bump version + CHANGELOG"]:::action
@@ -76,22 +77,28 @@ flowchart TD
 ```mermaid
 flowchart TD
     A["proj plan"]:::entry
-    A --> B["Read proj.yaml for context"]:::action
-    B --> C["Prompt: describe the problem"]:::prompt
-    C --> D["Send to Claude API with project context"]:::llm
-    D --> E["Stream architecture proposal"]:::llm
-    E --> F{"Refine?"}:::decision
-    F -->|"yes — ask follow-up"| D
-    F -->|"accept"| G["Write PLAN.md to repo"]:::action
-    G --> JC{"Jira configured?"}:::decision
-    JC -->|"no"| Z["Done — run proj dev"]:::done
-    JC -->|"yes"| SM{"Story method"}:::decision
-    SM -->|"1 — extract via Claude"| H["Claude extracts stories from plan"]:::llm
-    SM -->|"2 — enter manually"| M["Prompt: enter stories one by one"]:::prompt
+    A --> M{"proj.yaml exists?"}:::decision
+    M -->|"no — new project"| NP1["Prompt: name + stack + cloud"]:::prompt
+    M -->|"yes — existing project"| EP1["Read proj.yaml"]:::action
+    NP1 --> P["Prompt: describe the problem"]:::prompt
+    EP1 --> P
+    P --> L["Send to Claude API with project context"]:::llm
+    L --> R["Stream architecture proposal"]:::llm
+    R --> F{"Refine?"}:::decision
+    F -->|"yes"| L
+    F -->|"accept"| G["Write PLAN.md"]:::action
+    G --> MX{"Mode?"}:::decision
+    MX -->|"new project"| SC{"Scaffold now?"}:::decision
+    SC -->|"yes"| SN["Run proj new"]:::action
+    SC -->|"no"| Z["Done"]:::done
+    SN --> Z
+    MX -->|"existing project"| SM{"Story method"}:::decision
+    SM -->|"1 — extract via Claude"| H["Claude extracts stories"]:::llm
+    SM -->|"2 — enter manually"| MN["Prompt: enter stories one by one"]:::prompt
     SM -->|"3 — skip"| Z
-    H --> I["Preview story list"]:::action
-    I --> K["POST stories under Epic"]:::jira
-    M --> K
+    H --> I["Preview + confirm"]:::action
+    I --> K["POST stories under Jira Epic"]:::jira
+    MN --> K
     K --> Z
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
     classDef prompt fill:#0f4c75,stroke:#1b6ca8,color:#e2e8f0

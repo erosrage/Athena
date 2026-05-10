@@ -1,0 +1,84 @@
+from __future__ import annotations
+
+import typer
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.text import Text
+
+app = typer.Typer()
+console = Console()
+
+COMMANDS = [
+    ("proj plan",    "pre-scaffold",  "Brainstorm + architect with Claude. Picks stack/cloud, writes PLAN.md, creates Jira stories."),
+    ("proj new",     "scaffold",      "Scaffold project files, proj.yaml, CLAUDE.md, .gitignore, and git init."),
+    ("proj dev",     "develop",       "Load secrets, pick active Jira ticket → In Progress, start dev server."),
+    ("proj build",   "build",         "Build Docker image (or Databricks wheel), push to registry, update Jira ticket."),
+    ("proj release", "release",       "Bump version, update CHANGELOG, tag, deploy to cloud, close Jira stories."),
+    ("proj status",  "observe",       "Show git state, current version, and live Jira Epic + ticket summary."),
+    ("proj mcp",     "integration",   "Start MCP server so Claude Code can call proj commands as tools."),
+    ("proj help",    "meta",          "Show this help screen."),
+]
+
+LIFECYCLE = "proj plan → proj new → proj dev → proj build → proj release"
+
+FLAGS = [
+    ("proj plan --resume",          "Continue refining an existing PLAN.md"),
+    ("proj build --multi-arch",     "Build for linux/amd64 + linux/arm64"),
+    ("proj build --no-push",        "Build image but keep it local"),
+    ("proj release --bump minor",   "Bump minor version instead of patch"),
+    ("proj release --dry-run",      "Preview release without making changes"),
+]
+
+
+@app.callback(invoke_without_command=True)
+def help_cmd():
+    """Show all commands, lifecycle order, and useful flags."""
+
+    console.print()
+    console.print(Panel(
+        Text(LIFECYCLE, style="bold cyan", justify="center"),
+        title="[bold #a78bfa]proj[/] — lifecycle",
+        border_style="#334155",
+        padding=(0, 2),
+    ))
+    console.print()
+
+    # Commands table
+    table = Table(
+        show_header=True,
+        header_style="bold #a78bfa",
+        box=None,
+        padding=(0, 2),
+        show_edge=False,
+    )
+    table.add_column("Command",  style="bold cyan",   no_wrap=True)
+    table.add_column("Phase",    style="dim",         no_wrap=True)
+    table.add_column("Description")
+
+    for cmd, phase, desc in COMMANDS:
+        table.add_row(cmd, phase, desc)
+
+    console.print(table)
+    console.print()
+
+    # Flags table
+    flags_table = Table(
+        show_header=True,
+        header_style="bold #a78bfa",
+        box=None,
+        padding=(0, 2),
+        show_edge=False,
+        title="[dim]Common flags[/]",
+        title_justify="left",
+    )
+    flags_table.add_column("Flag",        style="cyan", no_wrap=True)
+    flags_table.add_column("Description")
+
+    for flag, desc in FLAGS:
+        flags_table.add_row(flag, desc)
+
+    console.print(flags_table)
+    console.print()
+    console.print("  [dim]Full docs:[/] [bold]proj <command> --help[/]")
+    console.print()
