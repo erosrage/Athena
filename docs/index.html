@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>proj CLI — Workflow Diagram</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.5/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: #0f1117;
+      color: #e2e8f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      padding: 1.5rem;
+      gap: 1rem;
+    }
+    h1 { font-size: 1.4rem; font-weight: 600; color: #a78bfa; }
+    .subtitle { font-size: 0.8rem; color: #64748b; margin-top: 0.15rem; }
+    .tabs { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .tab {
+      padding: 0.35rem 0.9rem;
+      border-radius: 9999px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #94a3b8;
+      transition: all 0.15s;
+    }
+    .tab:hover { border-color: #a78bfa; color: #a78bfa; }
+    .tab.active { background: #a78bfa; color: #0f1117; border-color: #a78bfa; }
+
+    .diagram-shell {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 1rem;
+      overflow: hidden;
+      min-height: 0;
+    }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid #334155;
+      flex-shrink: 0;
+    }
+    .zoom-btn {
+      width: 28px; height: 28px;
+      border-radius: 6px;
+      border: 1px solid #334155;
+      background: #0f1117;
+      color: #94a3b8;
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .zoom-btn:hover { border-color: #a78bfa; color: #a78bfa; }
+    .zoom-label { font-size: 0.75rem; color: #64748b; min-width: 38px; text-align: center; }
+    .spacer { flex: 1; }
+    .legend {
+      display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.72rem; color: #64748b;
+    }
+    .legend-item { display: flex; align-items: center; gap: 0.35rem; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+    .diagram-viewport {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+      cursor: grab;
+      min-height: 0;
+    }
+    .diagram-viewport:active { cursor: grabbing; }
+    .diagram-scaler {
+      transform-origin: top left;
+      display: inline-block;
+      padding: 1.5rem;
+    }
+    .diagram-pane { display: none; width: 100%; height: 100%; }
+    .diagram-pane.active { display: contents; }
+
+    .error { color: #f87171; font-size: 0.75rem; padding: 1rem; font-family: monospace; }
+  </style>
+</head>
+<body>
+
+<div>
+  <h1>proj CLI — Workflow</h1>
+  <p class="subtitle">Python-based project lifecycle manager · Windows &amp; macOS</p>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="show('overview')">Full Overview</button>
+  <button class="tab" onclick="show('init')">proj new</button>
+  <button class="tab" onclick="show('dev')">proj dev</button>
+  <button class="tab" onclick="show('build')">proj build</button>
+  <button class="tab" onclick="show('release')">proj release</button>
+  <button class="tab" onclick="show('claude')">Claude Code</button>
+</div>
+
+<div class="diagram-shell">
+  <div class="toolbar">
+    <button class="zoom-btn" onclick="zoomBy(1.2)" title="Zoom in">+</button>
+    <span class="zoom-label" id="zoom-label">100%</span>
+    <button class="zoom-btn" onclick="zoomBy(0.8)" title="Zoom out">−</button>
+    <button class="zoom-btn" onclick="zoomReset()" title="Reset zoom">⟳</button>
+    <div class="spacer"></div>
+    <div class="legend" id="legend-overview">
+      <div class="legend-item"><div class="dot" style="background:#a78bfa"></div>Entry point</div>
+      <div class="legend-item"><div class="dot" style="background:#1e40af"></div>Stage</div>
+      <div class="legend-item"><div class="dot" style="background:#475569"></div>Action</div>
+      <div class="legend-item"><div class="dot" style="background:#065f46"></div>Claude Code</div>
+    </div>
+    <div class="legend" id="legend-claude" style="display:none">
+      <div class="legend-item"><div class="dot" style="background:#065f46"></div>Claude Code</div>
+      <div class="legend-item"><div class="dot" style="background:#0f4c75"></div>Slash command</div>
+      <div class="legend-item"><div class="dot" style="background:#3b0764"></div>MCP tool</div>
+      <div class="legend-item"><div class="dot" style="background:#a78bfa"></div>CLI call</div>
+    </div>
+  </div>
+
+  <div class="diagram-viewport" id="viewport">
+    <div class="diagram-scaler" id="scaler">
+      <div class="diagram-pane active" id="pane-overview"><div id="svg-overview"></div></div>
+      <div class="diagram-pane" id="pane-init"><div id="svg-init"></div></div>
+      <div class="diagram-pane" id="pane-dev"><div id="svg-dev"></div></div>
+      <div class="diagram-pane" id="pane-build"><div id="svg-build"></div></div>
+      <div class="diagram-pane" id="pane-release"><div id="svg-release"></div></div>
+      <div class="diagram-pane" id="pane-claude"><div id="svg-claude"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1e293b',
+      primaryTextColor: '#e2e8f0',
+      lineColor: '#475569',
+      edgeLabelBackground: '#1e293b'
+    }
+  });
+
+  const diagrams = {
+    overview: `
+flowchart TD
+    CC["Claude Code"]:::claude
+    CLI["proj CLI"]:::entry
+    CC -->|"slash commands + MCP tools"| CLI
+    CLI --> NEW["proj new"]:::stage
+    CLI --> DEV["proj dev"]:::stage
+    CLI --> BUILD["proj build"]:::stage
+    CLI --> RELEASE["proj release"]:::stage
+    CLI --> STATUS["proj status"]:::stage
+    NEW --> S["Scaffold + git init + proj.yaml"]:::action
+    NEW --> CG["Generate CLAUDE.md + .claude/"]:::claude
+    DEV --> ENV["Load secrets + run dev server"]:::action
+    BUILD --> PUSH["docker build + push registry"]:::action
+    RELEASE --> VER["Bump version + CHANGELOG"]:::action
+    VER --> DEPLOY["Deploy + Jira notify"]:::action
+    STATUS --> JS["Show version + Jira Epic + tickets"]:::action
+    classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
+    classDef stage fill:#1e40af,stroke:#3b82f6,color:#e2e8f0
+    classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
+    classDef claude fill:#065f46,stroke:#059669,color:#e2e8f0
+`,
+    init: `
+flowchart TD
+    A["proj new name"]:::entry
+    A --> B["Prompt: pick stack"]:::prompt
+    B --> C["Prompt: cloud target"]:::prompt
+    C --> J{"Jira Epic"}:::decision
+    J -->|"Use existing"| J1["Prompt: enter Epic key"]:::prompt
+    J -->|"Create new"| J2["POST Jira API - create Epic"]:::action
+    J1 --> J3["Validate Epic exists"]:::action
+    J2 --> J3
+    J3 --> J4["Add watchers + stakeholders"]:::action
+    J4 --> D["Copy template files"]:::action
+    D --> E["Write proj.yaml"]:::action
+    E --> F["git init + initial commit"]:::action
+    F --> G["Create .env.example + .gitignore"]:::action
+    G --> H["Generate CLAUDE.md + .claude/"]:::claude
+    H --> Z["Ready to dev"]:::done
+    classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
+    classDef prompt fill:#0f4c75,stroke:#1b6ca8,color:#e2e8f0
+    classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
+    classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
+    classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
+    classDef claude fill:#065f46,stroke:#059669,color:#e2e8f0
+`,
+    dev: `
+flowchart TD
+    A["proj dev"]:::entry
+    A --> B["Read proj.yaml"]:::action
+    B --> ST{"Stack"}:::decision
+    ST -->|"databricks"| DB["Sync to Databricks Repos"]:::dbx
+    DB --> DBS["databricks repos update"]:::dbx
+    DBS --> DBT{"run_tests_on_dev?"}:::decision
+    DBT -->|"yes"| DBR["pytest tests/ on cluster"]:::dbx
+    DBT -->|"no"| DBD["Done"]:::done
+    DBR --> DBD
+    ST -->|"other"| C{"Secrets backend"}:::decision
+    C -->|"Azure Key Vault"| D1["az keyvault fetch"]:::action
+    C -->|"AWS SSM"| D2["boto3 SSM fetch"]:::action
+    C -->|"SOPS"| D3["sops decrypt"]:::action
+    C -->|"dotenv"| D4["python-dotenv load"]:::action
+    C -->|"databricks-secrets"| D5["databricks secrets get-secret"]:::dbx
+    D1 & D2 & D3 & D4 & D5 --> E["Inject into environment"]:::action
+    E --> F{"Stack"}:::decision
+    F -->|"flask"| G1["flask run reload"]:::run
+    F -->|"electron"| G2["npm run dev"]:::run
+    F -->|"go"| G3["air live reload"]:::run
+    F -->|"rust"| G4["cargo watch"]:::run
+    F -->|"ts-node"| G5["tsx watch"]:::run
+    classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
+    classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
+    classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
+    classDef run fill:#1e3a5f,stroke:#3b82f6,color:#e2e8f0
+    classDef dbx fill:#e25a1c,stroke:#ff6b35,color:#fff
+    classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
+`,
+    build: `
+flowchart TD
+    A["proj build"]:::entry
+    A --> B["Read proj.yaml"]:::action
+    B --> C["Generate image tag"]:::action
+    C --> D{"Multi-arch"}:::decision
+    D -->|"Yes"| E["docker buildx multi-platform"]:::action
+    D -->|"No"| F["docker build"]:::action
+    E & F --> G{"Cloud target"}:::decision
+    G -->|"Azure"| H1["push to ACR"]:::cloud
+    G -->|"AWS"| H2["push to ECR"]:::cloud
+    G -->|"GCP"| H3["push to GCR"]:::cloud
+    G -->|"Local"| H4["keep local"]:::cloud
+    H1 & H2 & H3 & H4 --> Z["Image ready"]:::done
+    classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
+    classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
+    classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
+    classDef cloud fill:#1e3a5f,stroke:#3b82f6,color:#e2e8f0
+    classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
+`,
+    release: `
+flowchart TD
+    A["proj release"]:::entry
+    A --> B["Prompt: major / minor / patch"]:::prompt
+    B --> C["Bump version in manifest"]:::action
+    C --> D["Generate CHANGELOG"]:::action
+    D --> E["git commit + tag"]:::action
+    E --> F["git push + push tag"]:::action
+    F --> G{"Deploy target"}:::decision
+    G -->|"Kubernetes"| H1["kubectl rollout"]:::deploy
+    G -->|"Azure"| H2["az webapp deploy"]:::deploy
+    G -->|"AWS"| H3["ecs update-service"]:::deploy
+    G -->|"GCP"| H4["gcloud run deploy"]:::deploy
+    H1 & H2 & H3 & H4 --> I["Post webhook"]:::action
+    I --> J["Post Jira comment + tag stakeholders"]:::action
+    J --> Z["Released"]:::done
+    classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
+    classDef prompt fill:#0f4c75,stroke:#1b6ca8,color:#e2e8f0
+    classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
+    classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
+    classDef deploy fill:#1e3a5f,stroke:#3b82f6,color:#e2e8f0
+    classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
+`,
+    claude: `
+flowchart TD
+    CC["Claude Code session"]:::claude
+    CC --> CM["Reads CLAUDE.md on open"]:::claude
+    CC --> SC{"How you drive it"}:::decision
+    SC -->|"slash"| S1["/build"]:::cmd
+    SC -->|"slash"| S2["/release"]:::cmd
+    SC -->|"slash"| S3["/status"]:::cmd
+    SC -->|"slash"| S4["/jira-ticket"]:::cmd
+    SC -->|"MCP"| M1["get_project_context"]:::mcp
+    SC -->|"MCP"| M2["get_jira_epic"]:::mcp
+    SC -->|"MCP"| M3["create_jira_ticket"]:::mcp
+    SC -->|"MCP"| M4["run_build"]:::mcp
+    SC -->|"MCP"| M5["run_release"]:::mcp
+    S1 & M4 --> B["proj build"]:::cli
+    S2 & M5 --> R["proj release"]:::cli
+    S3 --> ST["proj status"]:::cli
+    S4 & M3 --> JT["Jira ticket created"]:::cli
+    CC --> HK["Stop hook - warns on dirty git"]:::hook
+    classDef claude fill:#065f46,stroke:#059669,color:#e2e8f0
+    classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
+    classDef cmd fill:#0f4c75,stroke:#1b6ca8,color:#e2e8f0
+    classDef mcp fill:#3b0764,stroke:#7c3aed,color:#e2e8f0
+    classDef cli fill:#a78bfa,stroke:#7c3aed,color:#0f1117
+    classDef hook fill:#1e293b,stroke:#475569,color:#94a3b8
+`
+  };
+
+  // ── Zoom state ──────────────────────────────────────────────
+  let scale = 1;
+
+  function updateZoomLabel() {
+    document.getElementById('zoom-label').textContent = Math.round(scale * 100) + '%';
+  }
+
+  function applyScale() {
+    document.getElementById('scaler').style.transform = `scale(${scale})`;
+    updateZoomLabel();
+  }
+
+  function zoomBy(factor) {
+    scale = Math.min(Math.max(scale * factor, 0.2), 4);
+    applyScale();
+  }
+
+  function zoomReset() {
+    scale = 1;
+    applyScale();
+    const vp = document.getElementById('viewport');
+    vp.scrollTop = 0;
+    vp.scrollLeft = 0;
+  }
+
+  // scroll-wheel zoom on viewport
+  document.getElementById('viewport').addEventListener('wheel', e => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      zoomBy(e.deltaY < 0 ? 1.1 : 0.9);
+    }
+  }, { passive: false });
+
+  // ── Pan via drag ─────────────────────────────────────────────
+  const vp = document.getElementById('viewport');
+  let drag = false, dragX = 0, dragY = 0;
+  vp.addEventListener('mousedown', e => {
+    drag = true; dragX = e.clientX + vp.scrollLeft; dragY = e.clientY + vp.scrollTop;
+  });
+  window.addEventListener('mousemove', e => {
+    if (!drag) return;
+    vp.scrollLeft = dragX - e.clientX;
+    vp.scrollTop  = dragY - e.clientY;
+  });
+  window.addEventListener('mouseup', () => drag = false);
+
+  // ── Render ───────────────────────────────────────────────────
+  const rendered = new Set();
+  const TABS = ['overview','init','dev','build','release','claude'];
+
+  async function renderDiagram(id) {
+    if (rendered.has(id)) return;
+    const el = document.getElementById('svg-' + id);
+    if (!el) return;
+    try {
+      const { svg } = await mermaid.render('m-' + id, diagrams[id]);
+      el.innerHTML = svg;
+      rendered.add(id);
+    } catch (e) {
+      el.innerHTML = `<div class="error">${e.message}</div>`;
+    }
+  }
+
+  function show(id) {
+    TABS.forEach(t => {
+      document.getElementById('pane-' + t).classList.toggle('active', t === id);
+      document.querySelectorAll('.tab')[TABS.indexOf(t)].classList.toggle('active', t === id);
+    });
+    document.getElementById('legend-overview').style.display = (id === 'overview') ? '' : 'none';
+    document.getElementById('legend-claude').style.display   = (id === 'claude')   ? '' : 'none';
+    zoomReset();
+    renderDiagram(id);
+  }
+
+  renderDiagram('overview');
+</script>
+</body>
+</html>
