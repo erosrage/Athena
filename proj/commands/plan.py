@@ -25,6 +25,7 @@ Rules for this session:
 - Do NOT run any commands
 - Do NOT scaffold files or directories (other than PLAN.md when explicitly asked)
 - Do NOT attempt to implement anything
+- Do NOT spawn agents or sub-tasks to implement on your behalf
 - ONLY ask questions, discuss trade-offs, and recommend approaches
 
 When the developer is happy with the plan, write it to PLAN.md using your Write tool. The plan should cover:
@@ -196,7 +197,7 @@ def _open_claude_session(config: dict, existing_plan: str | None) -> None:
     try:
         subprocess.run([
             "claude",
-            "--disallowedTools", "Bash,Edit",
+            "--disallowedTools", "Bash,Edit,Agent",
             "--append-system-prompt", _PLANNING_SYSTEM_PROMPT,
             initial_message,
         ])
