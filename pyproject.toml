@@ -18,7 +18,6 @@ dependencies = [
     "azure-identity>=1",
     "requests>=2.31",
     "mcp>=1.0",
-    "anthropic>=0.25",
 ]
 
 [project.scripts]

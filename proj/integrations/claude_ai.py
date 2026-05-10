@@ -1,65 +1,90 @@
 from __future__ import annotations
-import os
-
+import subprocess
 from rich.console import Console
-from rich.markdown import Markdown
 
 console = Console()
 
 
-def _client():
-    try:
-        import anthropic
-    except ImportError:
-        console.print("[red]anthropic package not installed.[/] Run: pip install anthropic")
-        raise SystemExit(1)
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        console.print("[red]ANTHROPIC_API_KEY not set.[/] Add it to your .env or environment.")
-        raise SystemExit(1)
-    return anthropic.Anthropic(api_key=api_key)
-
-
 def stream_response(messages: list[dict], system: str) -> str:
-    """Stream a Claude response to the terminal, return the full text."""
-    import anthropic
-    client = _client()
-    full_text = ""
-    with client.messages.stream(
-        model="claude-opus-4-7",
-        max_tokens=4096,
-        system=system,
-        messages=messages,
-    ) as stream:
-        for text in stream.text_stream:
-            print(text, end="", flush=True)
-            full_text += text
-    print()
-    return full_text
+    """Build conversation history into a single prompt, shell to `claude -p`, stream output."""
+    prompt = _build_prompt(messages, system)
+    return _run_claude_streaming(prompt)
 
 
 def extract_stories(plan_text: str, project_context: dict) -> list[str]:
-    """Ask Claude to pull actionable stories out of a plan. Returns a list of summaries."""
-    system = (
-        "You are a Jira project manager. Given a project plan, extract a flat list of "
-        "actionable user stories. Output ONLY a numbered list of story summaries, one per line, "
-        "no extra commentary. Each summary should be concise (under 80 chars) and start with a verb."
+    """Ask Claude Code CLI to extract actionable stories from a plan."""
+    prompt = (
+        "You are a Jira project manager. Given this project plan, extract a flat list of "
+        "actionable user stories. Output ONLY a numbered list, one story per line, no extra text. "
+        "Each summary must be under 80 chars and start with a verb.\n\n"
+        f"Plan:\n\n{plan_text}"
     )
-    messages = [{"role": "user", "content": f"Extract stories from this plan:\n\n{plan_text}"}]
-    client = _client()
-    response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1024,
-        system=system,
-        messages=messages,
-    )
-    raw = response.content[0].text.strip()
+    try:
+        result = subprocess.run(
+            ["claude", "-p"],
+            input=prompt,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        raw = result.stdout.strip()
+    except FileNotFoundError:
+        console.print("[red]`claude` not found.[/] Install Claude Code: https://claude.ai/code")
+        return []
+    except subprocess.TimeoutExpired:
+        console.print("[yellow]Story extraction timed out.[/]")
+        return []
+
+    return _parse_story_list(raw)
+
+
+def _run_claude_streaming(prompt: str) -> str:
+    """Pipe prompt to `claude -p` via stdin, stream stdout to terminal, return full text."""
+    try:
+        proc = subprocess.Popen(
+            ["claude", "-p"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
+    except FileNotFoundError:
+        console.print("[red]`claude` not found.[/] Install Claude Code: https://claude.ai/code")
+        raise SystemExit(1)
+
+    proc.stdin.write(prompt)
+    proc.stdin.close()
+
+    chunks: list[str] = []
+    for line in proc.stdout:
+        print(line, end="", flush=True)
+        chunks.append(line)
+
+    proc.wait()
+
+    if proc.returncode != 0:
+        err = proc.stderr.read().strip()
+        console.print(f"\n[red]claude exited {proc.returncode}[/]{': ' + err if err else ''}")
+        raise SystemExit(1)
+
+    return "".join(chunks)
+
+
+def _build_prompt(messages: list[dict], system: str) -> str:
+    parts = [system, ""]
+    for msg in messages:
+        label = "User" if msg["role"] == "user" else "Assistant"
+        parts.append(f"{label}: {msg['content']}")
+    return "\n\n".join(parts)
+
+
+def _parse_story_list(raw: str) -> list[str]:
     stories = []
     for line in raw.splitlines():
         line = line.strip()
         if not line:
             continue
-        # Strip leading "1. ", "- ", etc.
         for prefix in ("- ", "* "):
             if line.startswith(prefix):
                 line = line[len(prefix):]
