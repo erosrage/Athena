@@ -109,7 +109,12 @@ def _plan_existing(config: dict, resume: bool) -> None:
 
     console.print(f"\n[bold #a78bfa]proj plan[/] — [bold]{name}[/] ([cyan]{stack}[/] / [cyan]{cloud}[/])\n")
 
-    existing_plan = _read_plan_if_resume(resume)
+    # Always load existing plan when inside a project — no flag needed
+    existing_plan = None
+    if Path(PLAN_FILE).exists():
+        existing_plan = Path(PLAN_FILE).read_text(encoding="utf-8")
+        console.print(f"[dim]Loaded existing {PLAN_FILE}[/]\n")
+
     _open_claude_session(config, existing_plan)
 
     plan_text = _read_plan_or_warn()
@@ -278,25 +283,72 @@ def _maybe_create_stories_new_project(svc_name: str, plan_text: str) -> None:
 
 def _create_stories_from_plan(config: dict, jira_cfg: dict, plan_text: str) -> None:
     console.print("\n  Extracting stories from plan...")
-    stories = claude_ai.extract_stories(plan_text, config)
+    new_stories = claude_ai.extract_stories(plan_text, config)
 
-    if not stories:
+    if not new_stories:
         console.print("  [yellow]No stories extracted.[/]")
         return
 
-    console.print(f"\n  Found [bold]{len(stories)}[/] suggested stories:\n")
-    for i, s in enumerate(stories, 1):
+    # Show existing Jira stories so the user can judge what's actually new
+    epic_key = jira_cfg.get("epic_key", "")
+    try:
+        client = jira_mod.connect(jira_cfg["base_url"], jira_cfg["token"])
+        existing = jira_mod.get_all_stories(client, epic_key)
+        if existing:
+            console.print(f"\n  [bold]Existing stories[/] in [cyan]{epic_key}[/]:\n")
+            for s in existing:
+                status = s["fields"]["status"]["name"]
+                summary = s["fields"]["summary"]
+                key = s["key"]
+                style = "dim" if status.lower() in ("done", "closed") else "white"
+                console.print(f"    [{style}][cyan]{key}[/] [{status}] {summary}[/]")
+    except Exception:
+        existing = []
+
+    console.print(f"\n  [bold]Stories from revised plan[/] ({len(new_stories)}):\n")
+    for i, s in enumerate(new_stories, 1):
         console.print(f"    [cyan]{i}[/]. {s}")
 
     console.print()
-    if not Confirm.ask("  Create all of these in Jira?", default=True):
-        console.print("  [dim]Skipped.[/]")
-        return
+    if existing:
+        console.print("  [dim]Review the lists above — skip any that already exist.[/]")
 
-    _post_stories(jira_cfg, stories)
+    if not Confirm.ask("  Create all of these in Jira?", default=True):
+        # Let user pick which ones to create
+        raw = Prompt.ask(
+            "  Enter numbers to create (e.g. 1,3,5) or blank to skip all",
+            default="",
+        ).strip()
+        if not raw:
+            console.print("  [dim]Skipped.[/]")
+            return
+        selected = []
+        for part in raw.split(","):
+            try:
+                idx = int(part.strip()) - 1
+                if 0 <= idx < len(new_stories):
+                    selected.append(new_stories[idx])
+            except ValueError:
+                pass
+        _post_stories(jira_cfg, selected)
+    else:
+        _post_stories(jira_cfg, new_stories)
 
 
 def _create_stories_manual(jira_cfg: dict) -> None:
+    epic_key = jira_cfg.get("epic_key", "")
+    try:
+        client = jira_mod.connect(jira_cfg["base_url"], jira_cfg["token"])
+        existing = jira_mod.get_all_stories(client, epic_key)
+        if existing:
+            console.print(f"\n  [bold]Existing stories[/] in [cyan]{epic_key}[/]:\n")
+            for s in existing:
+                status = s["fields"]["status"]["name"]
+                key = s["key"]
+                style = "dim" if status.lower() in ("done", "closed") else "white"
+                console.print(f"    [{style}][cyan]{key}[/] [{status}] {s['fields']['summary']}[/]")
+    except Exception:
+        pass
     console.print("\n  Enter one story per line, blank to finish.")
     stories = []
     while True:

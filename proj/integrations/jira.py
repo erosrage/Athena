@@ -64,6 +64,12 @@ def prompt_and_create_stories(jira: Jira, project_key: str, epic_key: str) -> li
     return created
 
 
+def get_all_stories(jira: Jira, epic_key: str) -> list[dict]:
+    """Return ALL stories under an Epic regardless of status."""
+    issues = jira.get_epic_issues(epic_key).get("issues", [])
+    return [i for i in issues if i["fields"]["issuetype"]["name"] == "Story"]
+
+
 def get_open_tickets(jira: Jira, epic_key: str) -> list[dict]:
     """Return open (non-Done) tickets in an Epic."""
     issues = jira.get_epic_issues(epic_key).get("issues", [])
