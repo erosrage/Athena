@@ -2,6 +2,8 @@
 
 Python-based CLI for managing the full project lifecycle across stacks, clouds, and teams.
 
+📖 **[Complete Usage Guide →](GUIDE.md)**
+
 ---
 
 ## Full Workflow Overview
