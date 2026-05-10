@@ -33,7 +33,12 @@ When the developer is happy with the plan, write it to PLAN.md using your Write 
 3. **Key Components** — the main pieces that need to be built
 4. **Tech Choices** — specific stacks, libraries, services (note each component's stack)
 5. **Risks & Open Questions** — unknowns, tradeoffs, things to validate early
-6. **Suggested Stories** — numbered list of actionable stories to break the work into\
+6. **Suggested Stories** — numbered list of actionable stories to break the work into
+
+If the developer asks to start building, implement a story, write code, or begin development:
+- Do NOT start implementing
+- Tell them the plan is ready and they should type /exit to return to the proj CLI
+- Remind them the next step is: proj new <name> to scaffold, then proj dev to start coding\
 """
 
 
@@ -191,7 +196,7 @@ def _open_claude_session(config: dict, existing_plan: str | None) -> None:
     try:
         subprocess.run([
             "claude",
-            "--disallowedTools", "Bash", "Edit",
+            "--disallowedTools", "Bash,Edit",
             "--append-system-prompt", _PLANNING_SYSTEM_PROMPT,
             initial_message,
         ])
