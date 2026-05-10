@@ -56,6 +56,7 @@ def new(
     jira_project  = Prompt.ask("  Jira project key (e.g. BPOE)")
 
     epic_key: str | None = None
+    client = None
 
     if Confirm.ask("  Link to an existing Epic?"):
         while True:
@@ -88,6 +89,11 @@ def new(
             console.print(f"[red]failed — {e}[/]")
             console.print("  [yellow]Continuing without Jira link.[/]")
             epic_key = None
+
+    # --- Create initial stories ---
+    if epic_key and client:
+        if Confirm.ask(f"\n  Create initial stories under [cyan]{epic_key}[/]?", default=True):
+            jira_mod.prompt_and_create_stories(client, jira_project, epic_key)
 
     # --- Scaffold ---
     project_dir = output_dir / name

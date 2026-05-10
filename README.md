@@ -40,13 +40,17 @@ flowchart TD
     A["proj new name"]:::entry
     A --> B["Prompt: pick stack"]:::prompt
     B --> C["Prompt: cloud target"]:::prompt
-    C --> J{"Jira Epic"}:::decision
+    C --> SB["Prompt: secrets backend"]:::prompt
+    SB --> J{"Jira Epic"}:::decision
     J -->|"Use existing"| J1["Prompt: enter Epic key"]:::prompt
-    J -->|"Create new"| J2["POST Jira API - create Epic"]:::action
-    J1 --> J3["Validate Epic exists"]:::action
+    J -->|"Create new"| J2["POST Jira API — create Epic"]:::jira
+    J1 --> J3["Validate Epic exists"]:::jira
     J2 --> J3
-    J3 --> J4["Add watchers + stakeholders"]:::action
-    J4 --> D["Copy template files"]:::action
+    J3 --> J4["Add watchers + stakeholders"]:::jira
+    J4 --> J5["Prompt: create initial stories?"]:::prompt
+    J5 -->|"yes"| J6["POST Jira API — create Stories"]:::jira
+    J5 -->|"no"| D
+    J6 --> D["Copy template files"]:::action
     D --> E["Write proj.yaml"]:::action
     E --> F["git init + initial commit"]:::action
     F --> G["Create .env.example + .gitignore"]:::action
@@ -58,6 +62,7 @@ flowchart TD
     classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
     classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
     classDef claude fill:#065f46,stroke:#059669,color:#e2e8f0
+    classDef jira fill:#0369a1,stroke:#0ea5e9,color:#e2e8f0
 ```
 
 ---
@@ -68,10 +73,13 @@ flowchart TD
 flowchart TD
     A["proj dev"]:::entry
     A --> B["Read proj.yaml"]:::action
-    B --> ST{"Stack"}:::decision
-    ST -->|"databricks"| DB["Sync to Databricks Repos"]:::dbx
-    DB --> DBS["databricks repos update"]:::dbx
-    DBS --> DBT{"run_tests_on_dev?"}:::decision
+    B --> JT["Fetch open Jira tickets in Epic"]:::jira
+    JT --> JP["Prompt: pick ticket to work on"]:::prompt
+    JP --> JI["Transition ticket → In Progress"]:::jira
+    JI --> ST{"Stack"}:::decision
+    ST -->|"databricks"| SEC2["Load secrets"]:::action
+    SEC2 --> DB["databricks repos update"]:::dbx
+    DB --> DBT{"run_tests_on_dev?"}:::decision
     DBT -->|"yes"| DBR["pytest tests/ on cluster"]:::dbx
     DBT -->|"no"| DBD["Done"]:::done
     DBR --> DBD
@@ -80,20 +88,21 @@ flowchart TD
     C -->|"AWS SSM"| D2["boto3 SSM fetch"]:::action
     C -->|"SOPS"| D3["sops decrypt"]:::action
     C -->|"dotenv"| D4["python-dotenv load"]:::action
-    C -->|"databricks-secrets"| D5["databricks secrets get-secret"]:::dbx
-    D1 & D2 & D3 & D4 & D5 --> E["Inject into environment"]:::action
+    D1 & D2 & D3 & D4 --> E["Inject into environment"]:::action
     E --> F{"Stack"}:::decision
-    F -->|"flask"| G1["flask run reload"]:::run
+    F -->|"flask"| G1["flask run --reload"]:::run
     F -->|"electron"| G2["npm run dev"]:::run
     F -->|"go"| G3["air live reload"]:::run
     F -->|"rust"| G4["cargo watch"]:::run
     F -->|"ts-node"| G5["tsx watch"]:::run
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
+    classDef prompt fill:#0f4c75,stroke:#1b6ca8,color:#e2e8f0
     classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
     classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
     classDef run fill:#1e3a5f,stroke:#3b82f6,color:#e2e8f0
     classDef dbx fill:#e25a1c,stroke:#ff6b35,color:#fff
     classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
+    classDef jira fill:#0369a1,stroke:#0ea5e9,color:#e2e8f0
 ```
 
 ---
@@ -104,26 +113,32 @@ flowchart TD
 flowchart TD
     A["proj build"]:::entry
     A --> ST{"Stack"}:::decision
-    ST -->|"databricks"| DB1["python -m build wheel"]:::dbx
+    ST -->|"databricks"| DB1["python -m build --wheel"]:::dbx
     DB1 --> DB2["Upload wheel to DBFS"]:::dbx
     DB2 --> DB3["dbx deploy job definition"]:::dbx
+    DB3 --> R
     ST -->|"other"| B["Read proj.yaml"]:::action
-    B --> C["Generate image tag"]:::action
-    C --> D{"Multi-arch"}:::decision
-    D -->|"Yes"| E["docker buildx multi-platform"]:::action
+    B --> C["Generate image tag (sha + version)"]:::action
+    C --> D{"Multi-arch?"}:::decision
+    D -->|"Yes"| E["docker buildx --platform linux/amd64,arm64"]:::action
     D -->|"No"| F["docker build"]:::action
-    E & F --> G{"Cloud target"}:::decision
+    E & F --> R{"Build ok?"}:::decision
+    R -->|"failure"| JF["Post failure comment to Jira ticket"]:::jira
+    JF --> FAIL["Exit 1"]:::done
+    R -->|"success"| G{"Cloud target"}:::decision
     G -->|"Azure"| H1["push to ACR"]:::cloud
     G -->|"AWS"| H2["push to ECR"]:::cloud
     G -->|"GCP"| H3["push to GCR"]:::cloud
     G -->|"Local"| H4["keep local"]:::cloud
-    H1 & H2 & H3 & H4 --> Z["Image ready"]:::done
+    H1 & H2 & H3 & H4 --> JOK["Transition active ticket → In Review"]:::jira
+    JOK --> Z["Image ready"]:::done
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
     classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
     classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
     classDef cloud fill:#1e3a5f,stroke:#3b82f6,color:#e2e8f0
     classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
     classDef dbx fill:#e25a1c,stroke:#ff6b35,color:#fff
+    classDef jira fill:#0369a1,stroke:#0ea5e9,color:#e2e8f0
 ```
 
 ---

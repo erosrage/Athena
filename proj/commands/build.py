@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.prompt import Confirm
 
 from proj.config import load_config
+from proj.integrations import jira as jira_mod
 
 app = typer.Typer()
 console = Console()
@@ -26,7 +27,8 @@ def build(
     console.print(f"\n[bold #a78bfa]proj build[/] — [bold]{name}[/]\n")
 
     if stack == "databricks":
-        _databricks_build(config)
+        success = _databricks_build(config)
+        _jira_post_build(config, success)
         return
 
     version = config.get("version", "0.1.0")
@@ -40,16 +42,25 @@ def build(
     console.print(f"  Version:   [cyan]{tag_ver}[/]")
     console.print(f"  Cloud:     [cyan]{cloud}[/]\n")
 
-    # Build
-    if multi_arch:
-        _run(["docker", "buildx", "build",
-              "--platform", "linux/amd64,linux/arm64",
-              "-t", tag, "-t", tag_ver, "."])
-    else:
-        _run(["docker", "build", "-t", tag, "-t", tag_ver, "."])
+    success = True
+    try:
+        if multi_arch:
+            _run(["docker", "buildx", "build",
+                  "--platform", "linux/amd64,linux/arm64",
+                  "-t", tag, "-t", tag_ver, "."])
+        else:
+            _run(["docker", "build", "-t", tag, "-t", tag_ver, "."])
+    except SystemExit:
+        success = False
+
+    if not success:
+        console.print("\n[red]Build failed.[/]")
+        _jira_post_build(config, success=False)
+        raise typer.Exit(1)
 
     if not push or cloud == "local":
         console.print("\n[green]Build complete.[/] Image kept local.")
+        _jira_post_build(config, success=True)
         return
 
     # Push
@@ -62,6 +73,8 @@ def build(
     _run(["docker", "tag", tag_ver, remote_tag_ver])
     _run(["docker", "push", remote_tag])
     _run(["docker", "push", remote_tag_ver])
+
+    _jira_post_build(config, success=True)
 
     console.print(f"\n[green]Pushed:[/] [bold]{remote_tag}[/]")
     console.print(f"[green]Pushed:[/] [bold]{remote_tag_ver}[/]")
@@ -97,7 +110,38 @@ def _login(cloud: str, config: dict) -> None:
         _run(["gcloud", "auth", "configure-docker", "--quiet"])
 
 
-def _databricks_build(config: dict) -> None:
+def _jira_post_build(config: dict, success: bool) -> None:
+    jira_cfg    = config.get("jira", {})
+    base_url    = jira_cfg.get("base_url")
+    token       = jira_cfg.get("token")
+    active_key  = jira_mod.load_active_ticket()
+
+    if not all([base_url, token, active_key]):
+        return
+
+    try:
+        client = jira_mod.connect(base_url, token)
+        if success:
+            ok = jira_mod.transition_ticket(client, active_key, "In Review")
+            if ok:
+                console.print(f"\n  [green]Jira:[/] [cyan]{active_key}[/] → In Review")
+        else:
+            import subprocess as sp
+            log_snippet = sp.run(
+                ["docker", "logs", "--tail", "20", config["name"]],
+                capture_output=True, text=True,
+            ).stderr or "No log available."
+            body = (
+                f"*Build failed* for [{active_key}]\n\n"
+                f"{{noformat}}\n{log_snippet}\n{{noformat}}"
+            )
+            jira_mod.post_comment(client, active_key, body)
+            console.print(f"\n  [yellow]Jira:[/] build failure posted to [cyan]{active_key}[/]")
+    except Exception as e:
+        console.print(f"\n  [yellow]Jira update skipped: {e}[/]")
+
+
+def _databricks_build(config: dict) -> bool:
     dbx     = config.get("databricks", {})
     name    = config["name"]
     version = config.get("version", "0.1.0")
@@ -125,6 +169,7 @@ def _databricks_build(config: dict) -> None:
         _run(["dbx", "deploy", "--deployment-file", str(deployment_file)])
 
     console.print(f"\n[green]Databricks build complete.[/] v{version}")
+    return True
 
 
 def _git_sha() -> str:
