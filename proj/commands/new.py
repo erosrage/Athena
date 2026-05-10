@@ -19,6 +19,17 @@ console = Console()
 TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates"
 
 
+def _pick(options: list[str], raw: str, label: str) -> str:
+    try:
+        idx = int(raw) - 1
+    except ValueError:
+        idx = -1
+    if not (0 <= idx < len(options)):
+        console.print(f"[red]Invalid {label} choice — must be 1–{len(options)}.[/]")
+        raise typer.Exit(1)
+    return options[idx]
+
+
 @app.callback(invoke_without_command=True)
 def new(
     name: str = typer.Argument(..., help="Project name"),
@@ -31,22 +42,19 @@ def new(
     # --- Stack ---
     console.print("[bold]Step 1/4[/] Pick a stack:")
     print_stack_menu(console)
-    stack_idx = int(Prompt.ask("\n  Choice", default="1")) - 1
-    stack = STACKS[stack_idx]
+    stack = _pick(STACKS, Prompt.ask("\n  Choice", default="1"), "stack")
 
     # --- Cloud ---
     console.print("\n[bold]Step 2/4[/] Pick a cloud target:")
     for i, c in enumerate(CLOUDS, 1):
         console.print(f"  [cyan]{i}[/]. {c}")
-    cloud_idx = int(Prompt.ask("  Choice", default="4")) - 1
-    cloud = CLOUDS[cloud_idx]
+    cloud = _pick(CLOUDS, Prompt.ask("  Choice", default="4"), "cloud")
 
     # --- Secrets backend ---
     console.print("\n[bold]Step 3/4[/] Pick a secrets backend:")
     for i, s in enumerate(SECRETS_BACKENDS, 1):
         console.print(f"  [cyan]{i}[/]. {s}")
-    secrets_idx = int(Prompt.ask("  Choice", default="1")) - 1
-    secrets_backend = SECRETS_BACKENDS[secrets_idx]
+    secrets_backend = _pick(SECRETS_BACKENDS, Prompt.ask("  Choice", default="1"), "secrets backend")
 
     # --- Jira ---
     console.print("\n[bold]Step 4/4[/] Jira Epic\n")

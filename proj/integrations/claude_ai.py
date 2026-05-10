@@ -25,6 +25,7 @@ def extract_stories(plan_text: str, project_context: dict) -> list[str]:
             input=prompt,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=60,
         )
         raw = result.stdout.strip()
@@ -47,6 +48,7 @@ def _run_claude_streaming(prompt: str) -> str:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
             bufsize=1,
         )
     except FileNotFoundError:

@@ -62,12 +62,12 @@ def _plan_new(resume: bool) -> None:
 
     console.print("\n  Pick a stack:")
     print_stack_menu(console)
-    stack = STACKS[int(Prompt.ask("\n  Choice", default="1")) - 1]
+    stack = _pick(STACKS, Prompt.ask("\n  Choice", default="1"), "stack")
 
     console.print("\n  Pick a cloud target:")
     for i, c in enumerate(CLOUDS, 1):
         console.print(f"    [cyan]{i}[/]. {c}")
-    cloud = CLOUDS[int(Prompt.ask("  Choice", default="4")) - 1]
+    cloud = _pick(CLOUDS, Prompt.ask("  Choice", default="4"), "cloud")
 
     config = {"name": name, "stack": stack, "cloud": cloud}
     system = _build_system(config)
@@ -259,6 +259,17 @@ def _post_stories(jira_cfg: dict, stories: list[str]) -> None:
         console.print(f"\n  [bold]{len(created)}[/] stories created under [cyan]{epic_key}[/]")
     except Exception as e:
         console.print(f"  [red]Jira story creation failed: {e}[/]")
+
+
+def _pick(options: list[str], raw: str, label: str) -> str:
+    try:
+        idx = int(raw) - 1
+    except ValueError:
+        idx = -1
+    if not (0 <= idx < len(options)):
+        console.print(f"[red]Invalid {label} choice — must be 1–{len(options)}.[/]")
+        raise typer.Exit(1)
+    return options[idx]
 
 
 def _try_load_config() -> dict | None:
