@@ -1,6 +1,6 @@
 import typer
 from rich.console import Console
-from proj.commands import new, dev, build, release, status, mcp
+from proj.commands import new, plan, dev, build, release, status, mcp
 
 app = typer.Typer(
     name="proj",
@@ -11,6 +11,7 @@ app = typer.Typer(
 console = Console()
 
 app.add_typer(new.app,     name="new",     help="Scaffold a new project.")
+app.add_typer(plan.app,    name="plan",    help="LLM-assisted solutioning and story generation.")
 app.add_typer(dev.app,     name="dev",     help="Start the dev loop.")
 app.add_typer(build.app,   name="build",   help="Build and package.")
 app.add_typer(release.app, name="release", help="Version, deploy, and notify.")
@@ -23,6 +24,7 @@ def main(ctx: typer.Context):
     if ctx.invoked_subcommand is None:
         console.print("[bold #a78bfa]proj[/] — project lifecycle manager\n")
         console.print("  [cyan]proj new[/]      Scaffold a new project")
+        console.print("  [cyan]proj plan[/]     LLM-assisted solutioning + story generation")
         console.print("  [cyan]proj dev[/]      Start the dev loop")
         console.print("  [cyan]proj build[/]    Build and package")
         console.print("  [cyan]proj release[/]  Version, deploy, and notify")

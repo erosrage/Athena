@@ -103,6 +103,7 @@
 <div class="tabs">
   <button class="tab active" onclick="show('overview')">Full Overview</button>
   <button class="tab" onclick="show('init')">proj new</button>
+  <button class="tab" onclick="show('plan')">proj plan</button>
   <button class="tab" onclick="show('dev')">proj dev</button>
   <button class="tab" onclick="show('build')">proj build</button>
   <button class="tab" onclick="show('release')">proj release</button>
@@ -123,6 +124,7 @@
       <div class="legend-item"><div class="dot" style="background:#475569"></div>Action</div>
       <div class="legend-item"><div class="dot" style="background:#065f46"></div>Claude Code</div>
       <div class="legend-item"><div class="dot" style="background:#0369a1"></div>Jira</div>
+      <div class="legend-item"><div class="dot" style="background:#4c1d95"></div>LLM</div>
     </div>
     <div class="legend" id="legend-claude" style="display:none">
       <div class="legend-item"><div class="dot" style="background:#065f46"></div>Claude Code</div>
@@ -136,6 +138,7 @@
     <div class="diagram-scaler" id="scaler">
       <div class="diagram-pane active" id="pane-overview"><div id="svg-overview"></div></div>
       <div class="diagram-pane" id="pane-init"><div id="svg-init"></div></div>
+      <div class="diagram-pane" id="pane-plan"><div id="svg-plan"></div></div>
       <div class="diagram-pane" id="pane-dev"><div id="svg-dev"></div></div>
       <div class="diagram-pane" id="pane-build"><div id="svg-build"></div></div>
       <div class="diagram-pane" id="pane-release"><div id="svg-release"></div></div>
@@ -164,6 +167,7 @@ flowchart TD
     CLI["proj CLI"]:::entry
     CC -->|"slash commands + MCP tools"| CLI
     CLI --> NEW["proj new"]:::stage
+    CLI --> PLAN["proj plan"]:::stage
     CLI --> DEV["proj dev"]:::stage
     CLI --> BUILD["proj build"]:::stage
     CLI --> RELEASE["proj release"]:::stage
@@ -171,6 +175,9 @@ flowchart TD
     NEW --> S["Scaffold + git init + proj.yaml"]:::action
     NEW --> CG["Generate CLAUDE.md + .claude/"]:::claude
     NEW --> J1["Create or link Jira Epic"]:::jira
+    PLAN --> LLM["Claude API solutioning loop"]:::llm
+    LLM --> PM["Write PLAN.md"]:::action
+    LLM --> J4["Generate + create Jira stories"]:::jira
     DEV --> ENV["Load secrets + run dev server"]:::action
     BUILD --> PUSH["docker build + push registry"]:::action
     RELEASE --> VER["Bump version + CHANGELOG"]:::action
@@ -183,6 +190,7 @@ flowchart TD
     classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
     classDef claude fill:#065f46,stroke:#059669,color:#e2e8f0
     classDef jira fill:#0369a1,stroke:#0ea5e9,color:#e2e8f0
+    classDef llm fill:#4c1d95,stroke:#7c3aed,color:#e2e8f0
 `,
     init: `
 flowchart TD
@@ -211,6 +219,32 @@ flowchart TD
     classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
     classDef claude fill:#065f46,stroke:#059669,color:#e2e8f0
     classDef jira fill:#0369a1,stroke:#0ea5e9,color:#e2e8f0
+`,
+    plan: `
+flowchart TD
+    A["proj plan"]:::entry
+    A --> B["Read proj.yaml for context"]:::action
+    B --> C["Prompt: describe the problem"]:::prompt
+    C --> D["Send to Claude API with project context"]:::llm
+    D --> E["Stream architecture proposal"]:::llm
+    E --> F{"Refine?"}:::decision
+    F -->|"yes — ask follow-up"| D
+    F -->|"accept"| G["Write PLAN.md to repo"]:::action
+    G --> JC{"Jira configured?"}:::decision
+    JC -->|"no"| Z["Done — run proj dev"]:::done
+    JC -->|"yes"| H["Extract stories from plan via Claude"]:::llm
+    H --> I["Preview story list"]:::action
+    I --> J{"Create in Jira?"}:::decision
+    J -->|"yes"| K["POST stories under Epic"]:::jira
+    J -->|"no"| Z
+    K --> Z
+    classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
+    classDef prompt fill:#0f4c75,stroke:#1b6ca8,color:#e2e8f0
+    classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
+    classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
+    classDef llm fill:#4c1d95,stroke:#7c3aed,color:#e2e8f0
+    classDef jira fill:#0369a1,stroke:#0ea5e9,color:#e2e8f0
+    classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
 `,
     dev: `
 flowchart TD
@@ -394,7 +428,7 @@ flowchart TD
 
   // ── Render ───────────────────────────────────────────────────
   const rendered = new Set();
-  const TABS = ['overview','init','dev','build','release','status','claude'];
+  const TABS = ['overview','init','plan','dev','build','release','status','claude'];
 
   async function renderDiagram(id) {
     if (rendered.has(id)) return;
