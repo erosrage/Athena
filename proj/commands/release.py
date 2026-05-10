@@ -172,8 +172,23 @@ def _notify_jira(jira_cfg: dict, epic_key: str, name: str, version: str, log: st
             f"{{noformat}}\n{log}\n{{noformat}}"
         )
         jira_mod.post_comment(client, epic_key, body)
-        jira_mod.transition_issues(client, epic_key, "Done")
-        console.print("  Comment posted, tickets transitioned to Done.")
+        console.print(f"  Comment posted on [cyan]{epic_key}[/]")
+
+        # Transition only the active story → Done
+        active_key = jira_mod.load_active_ticket()
+        if active_key:
+            ok = jira_mod.transition_ticket(client, active_key, "Done")
+            if ok:
+                jira_mod.clear_active_ticket()
+                console.print(f"  [green]Jira:[/] [cyan]{active_key}[/] → Done")
+
+        # Close Epic only when every story under it is complete
+        remaining = jira_mod.get_open_tickets(client, epic_key)
+        if not remaining:
+            jira_mod.transition_ticket(client, epic_key, "Done")
+            console.print(f"  [green]Jira:[/] [cyan]{epic_key}[/] → Done (all stories complete)")
+        else:
+            console.print(f"  [dim]{len(remaining)} {'story' if len(remaining) == 1 else 'stories'} still open — Epic stays active[/]")
     except Exception as e:
         console.print(f"  [yellow]Jira notify failed: {e}[/]")
 
