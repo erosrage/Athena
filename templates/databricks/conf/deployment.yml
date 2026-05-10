@@ -1,0 +1,12 @@
+environments:
+  default:
+    workflows:
+      - name: "{{project_name}}"
+        tasks:
+          - task_key: main
+            existing_cluster_id: "{{cluster_id}}"
+            python_wheel_task:
+              package_name: "{{project_name}}"
+              entry_point: main
+            libraries:
+              - whl: "dbfs:/FileStore/wheels/{{project_name}}/{{project_name}}-latest-py3-none-any.whl"

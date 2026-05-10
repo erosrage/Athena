@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "databricks-project"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "pyspark>=3.5",
+    "delta-spark>=3",
+    "mlflow>=2",
+]
+
+[project.scripts]
+main = "src.main:main"
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-mock", "dbx"]
