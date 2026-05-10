@@ -90,11 +90,6 @@ def new(
             console.print("  [yellow]Continuing without Jira link.[/]")
             epic_key = None
 
-    # --- Create initial stories ---
-    if epic_key and client:
-        if Confirm.ask(f"\n  Create initial stories under [cyan]{epic_key}[/]?", default=True):
-            jira_mod.prompt_and_create_stories(client, jira_project, epic_key)
-
     # --- Scaffold ---
     project_dir = output_dir / name
     if project_dir.exists():
@@ -155,4 +150,4 @@ def new(
     console.print(f"  Secrets: [cyan]{secrets_backend}[/]")
     if epic_key:
         console.print(f"  Jira:    [cyan]{epic_key}[/]")
-    console.print(f"\nNext: [bold]cd {name} && proj dev[/]")
+    console.print(f"\nNext: [bold]cd {name} && proj plan[/]  [dim](or proj dev if you already know the plan)[/]")

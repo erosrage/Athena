@@ -101,8 +101,17 @@ def plan(
     epic_key   = jira_cfg.get("epic_key")
 
     if all([base_url, token, project_key, epic_key]):
-        if Confirm.ask(f"\n  Create Jira stories from this plan under [cyan]{epic_key}[/]?", default=True):
-            _create_stories(config, jira_cfg, plan_text)
+        console.print(f"\n[bold]Jira stories[/] under [cyan]{epic_key}[/]")
+        console.print("  [cyan]1[/]. Extract stories from plan via Claude")
+        console.print("  [cyan]2[/]. Enter stories manually")
+        console.print("  [cyan]3[/]. Skip")
+        story_choice = Prompt.ask("  Choice", default="1").strip()
+        if story_choice == "1":
+            _create_stories_from_plan(config, jira_cfg, plan_text)
+        elif story_choice == "2":
+            _create_stories_manual(jira_cfg)
+        else:
+            console.print("  [dim]Skipped.[/]")
     else:
         console.print("\n  [dim]Jira not configured — skipping story creation.[/]")
 
@@ -138,7 +147,7 @@ def _write_plan(name: str, stack: str, cloud: str, problem: str, plan_text: str)
     Path(PLAN_FILE).write_text(content, encoding="utf-8")
 
 
-def _create_stories(config: dict, jira_cfg: dict, plan_text: str) -> None:
+def _create_stories_from_plan(config: dict, jira_cfg: dict, plan_text: str) -> None:
     console.print("\n  Extracting stories from plan...")
     stories = claude_ai.extract_stories(plan_text, config)
 
@@ -155,8 +164,25 @@ def _create_stories(config: dict, jira_cfg: dict, plan_text: str) -> None:
         console.print("  [dim]Skipped.[/]")
         return
 
+    _post_stories(jira_cfg, stories)
+
+
+def _create_stories_manual(jira_cfg: dict) -> None:
+    console.print("\n  Enter one story per line, blank to finish.")
+    stories = []
+    while True:
+        summary = Prompt.ask("  Story summary", default="").strip()
+        if not summary:
+            break
+        stories.append(summary)
+
+    if stories:
+        _post_stories(jira_cfg, stories)
+
+
+def _post_stories(jira_cfg: dict, stories: list[str]) -> None:
     try:
-        client = jira_mod.connect(jira_cfg["base_url"], jira_cfg["token"])
+        client      = jira_mod.connect(jira_cfg["base_url"], jira_cfg["token"])
         project_key = jira_cfg["project_key"]
         epic_key    = jira_cfg["epic_key"]
         created = []

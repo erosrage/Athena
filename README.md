@@ -54,10 +54,7 @@ flowchart TD
     J1 --> J3["Validate Epic exists"]:::jira
     J2 --> J3
     J3 --> J4["Add watchers + stakeholders"]:::jira
-    J4 --> J5["Prompt: create initial stories?"]:::prompt
-    J5 -->|"yes"| J6["POST Jira API — create Stories"]:::jira
-    J5 -->|"no"| D
-    J6 --> D["Copy template files"]:::action
+    J4 --> D["Copy template files"]:::action
     D --> E["Write proj.yaml"]:::action
     E --> F["git init + initial commit"]:::action
     F --> G["Create .env.example + .gitignore"]:::action
@@ -88,11 +85,13 @@ flowchart TD
     F -->|"accept"| G["Write PLAN.md to repo"]:::action
     G --> JC{"Jira configured?"}:::decision
     JC -->|"no"| Z["Done — run proj dev"]:::done
-    JC -->|"yes"| H["Extract stories from plan via Claude"]:::llm
+    JC -->|"yes"| SM{"Story method"}:::decision
+    SM -->|"1 — extract via Claude"| H["Claude extracts stories from plan"]:::llm
+    SM -->|"2 — enter manually"| M["Prompt: enter stories one by one"]:::prompt
+    SM -->|"3 — skip"| Z
     H --> I["Preview story list"]:::action
-    I --> J{"Create in Jira?"}:::decision
-    J -->|"yes"| K["POST stories under Epic"]:::jira
-    J -->|"no"| Z
+    I --> K["POST stories under Epic"]:::jira
+    M --> K
     K --> Z
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
     classDef prompt fill:#0f4c75,stroke:#1b6ca8,color:#e2e8f0
