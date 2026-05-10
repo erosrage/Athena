@@ -34,21 +34,37 @@ def _pick(options: list[str], raw: str, label: str) -> str:
 def new(
     name: str = typer.Argument(..., help="Project name"),
     output_dir: Path = typer.Option(Path.cwd(), "--dir", "-d", help="Where to create the project"),
+    stack_flag: str = typer.Option(None, "--stack", "-s", help="Skip stack picker (set by proj plan)"),
+    cloud_flag: str  = typer.Option(None, "--cloud", "-c", help="Skip cloud picker (set by proj plan)"),
 ):
     """Scaffold a new project with stack, cloud, and Jira Epic."""
 
     console.print(f"\n[bold #a78bfa]proj new[/] — scaffolding [bold]{name}[/]\n")
 
     # --- Stack ---
-    console.print("[bold]Step 1/4[/] Pick a stack:")
-    print_stack_menu(console)
-    stack = _pick(STACKS, Prompt.ask("\n  Choice", default="1"), "stack")
+    if stack_flag:
+        if stack_flag not in STACKS:
+            console.print(f"[red]Unknown stack: {stack_flag}[/]")
+            raise typer.Exit(1)
+        stack = stack_flag
+        console.print(f"[bold]Step 1/4[/] Stack: [cyan]{stack}[/] [dim](from proj plan)[/]")
+    else:
+        console.print("[bold]Step 1/4[/] Pick a stack:")
+        print_stack_menu(console)
+        stack = _pick(STACKS, Prompt.ask("\n  Choice", default="1"), "stack")
 
     # --- Cloud ---
-    console.print("\n[bold]Step 2/4[/] Pick a cloud target:")
-    for i, c in enumerate(CLOUDS, 1):
-        console.print(f"  [cyan]{i}[/]. {c}")
-    cloud = _pick(CLOUDS, Prompt.ask("  Choice", default="4"), "cloud")
+    if cloud_flag:
+        if cloud_flag not in CLOUDS:
+            console.print(f"[red]Unknown cloud: {cloud_flag}[/]")
+            raise typer.Exit(1)
+        cloud = cloud_flag
+        console.print(f"\n[bold]Step 2/4[/] Cloud: [cyan]{cloud}[/] [dim](from proj plan)[/]")
+    else:
+        console.print("\n[bold]Step 2/4[/] Pick a cloud target:")
+        for i, c in enumerate(CLOUDS, 1):
+            console.print(f"  [cyan]{i}[/]. {c}")
+        cloud = _pick(CLOUDS, Prompt.ask("  Choice", default="4"), "cloud")
 
     # --- Secrets backend ---
     console.print("\n[bold]Step 3/4[/] Pick a secrets backend:")

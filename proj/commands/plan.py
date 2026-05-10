@@ -17,18 +17,18 @@ console = Console()
 
 PLAN_FILE = "PLAN.md"
 
-_SYSTEM = """\
-You are a senior software architect and tech lead helping a developer plan a project before writing any code.
+_SYSTEM_ROLE = """\
+You are a senior software architect and tech lead helping a developer plan a project.
 
-Given the project context and the problem description, produce a structured plan with:
-1. **Problem Summary** — restate the problem clearly in 2-3 sentences
+Help them think through what they want to build. Ask clarifying questions. Explore the problem before jumping to solutions. When the architecture starts to take shape, recommend specific stacks, services, and patterns grounded in the project's cloud target.
+
+When the developer is happy with the plan, write it to PLAN.md using your Write tool. The plan should cover:
+1. **Problem Summary** — 2-3 sentences restating the problem clearly
 2. **Proposed Solution** — high-level architecture and approach
 3. **Key Components** — the main pieces that need to be built
-4. **Tech Choices** — specific libraries, patterns, or services to use (grounded in the stack/cloud provided)
-5. **Risks & Open Questions** — unknowns, tradeoffs, or things to validate early
-6. **Suggested Stories** — a numbered list of actionable stories to break the work into
-
-Be concrete and opinionated. Prefer simple solutions over complex ones. Ask clarifying questions if the problem is ambiguous.\
+4. **Tech Choices** — specific stacks, libraries, services (note each component's stack)
+5. **Risks & Open Questions** — unknowns, tradeoffs, things to validate early
+6. **Suggested Stories** — numbered list of actionable stories to break the work into\
 """
 
 
@@ -36,13 +36,10 @@ Be concrete and opinionated. Prefer simple solutions over complex ones. Ask clar
 def plan(
     resume: bool = typer.Option(False, "--resume", help="Continue from an existing PLAN.md"),
 ):
-    """LLM-assisted solutioning — brainstorm, architect, then scaffold."""
+    """LLM-assisted solutioning — opens a Claude Code session to brainstorm and architect."""
 
-    # Detect mode: pre-scaffold (no proj.yaml) vs. existing project
     config = _try_load_config()
-    existing_project = config is not None
-
-    if existing_project:
+    if config is not None:
         _plan_existing(config, resume)
     else:
         _plan_new(resume)
@@ -60,40 +57,34 @@ def _plan_new(resume: bool) -> None:
     if not name:
         raise typer.Exit(0)
 
-    console.print("\n  Pick a stack:")
-    print_stack_menu(console)
-    stack = _pick(STACKS, Prompt.ask("\n  Choice", default="1"), "stack")
-
-    console.print("\n  Pick a cloud target:")
+    console.print("\n  Pick a cloud target: [dim](infrastructure constraint — shapes the conversation)[/]")
     for i, c in enumerate(CLOUDS, 1):
         console.print(f"    [cyan]{i}[/]. {c}")
     cloud = _pick(CLOUDS, Prompt.ask("  Choice", default="4"), "cloud")
 
-    config = {"name": name, "stack": stack, "cloud": cloud}
-    system = _build_system(config)
-    messages: list[dict] = []
+    existing_plan = _read_plan_if_resume(resume)
+    _open_claude_session({"name": name, "cloud": cloud}, existing_plan)
 
-    if resume and Path(PLAN_FILE).exists():
-        existing = Path(PLAN_FILE).read_text()
-        messages.append({"role": "user", "content": f"Existing plan:\n\n{existing}\n\nLet's continue refining it."})
-        console.print(f"\n[dim]Resuming from {PLAN_FILE}[/]")
+    plan_text = _read_plan_or_warn()
+    if not plan_text:
+        raise typer.Exit(0)
 
-    plan_text = _solutioning_loop(messages, system)
+    # Post-session: ask which stacks were decided
+    services = _pick_stacks_post_session(name)
 
-    _write_plan(name, stack, cloud, plan_text)
-    console.print(f"\n[green]Plan saved to[/] [bold]{PLAN_FILE}[/]")
-
-    # Summary + handoff to proj new
-    console.print(f"\n[bold]Suggested settings[/]")
-    console.print(f"  Name:  [cyan]{name}[/]")
-    console.print(f"  Stack: [cyan]{stack}[/]")
-    console.print(f"  Cloud: [cyan]{cloud}[/]")
-
-    if Confirm.ask(f"\n  Scaffold [bold]{name}[/] now with these settings?", default=True):
-        console.print()
-        subprocess.run([sys.executable, "-m", "proj", "new", name], check=False)
-    else:
+    if not services:
         console.print(f"\n[dim]When ready:[/] [bold]proj new {name}[/]")
+        return
+
+    console.print()
+    for svc_name, stack in services:
+        if Confirm.ask(f"  Scaffold [bold]{svc_name}[/] ([cyan]{stack}[/] / [cyan]{cloud}[/])?", default=True):
+            console.print()
+            subprocess.run(
+                [sys.executable, "-m", "proj", "new", svc_name,
+                 "--stack", stack, "--cloud", cloud],
+                check=False,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -107,18 +98,12 @@ def _plan_existing(config: dict, resume: bool) -> None:
 
     console.print(f"\n[bold #a78bfa]proj plan[/] — [bold]{name}[/] ([cyan]{stack}[/] / [cyan]{cloud}[/])\n")
 
-    system   = _build_system(config)
-    messages: list[dict] = []
+    existing_plan = _read_plan_if_resume(resume)
+    _open_claude_session(config, existing_plan)
 
-    if resume and Path(PLAN_FILE).exists():
-        existing = Path(PLAN_FILE).read_text()
-        messages.append({"role": "user", "content": f"Existing plan:\n\n{existing}\n\nLet's continue refining it."})
-        console.print(f"[dim]Resuming from {PLAN_FILE}[/]\n")
-
-    plan_text = _solutioning_loop(messages, system)
-
-    _write_plan(name, stack, cloud, plan_text)
-    console.print(f"\n[green]Plan saved to[/] [bold]{PLAN_FILE}[/]")
+    plan_text = _read_plan_or_warn()
+    if not plan_text:
+        raise typer.Exit(0)
 
     # Jira stories
     jira_cfg    = config.get("jira", {})
@@ -146,73 +131,109 @@ def _plan_existing(config: dict, resume: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Shared helpers
+# Native Claude Code session
 # ---------------------------------------------------------------------------
 
-def _solutioning_loop(messages: list[dict], system: str) -> str:
-    console.print("[bold]Describe what you're trying to build or solve.[/]")
-    console.print("[dim]Be as vague or specific as you like — Claude will ask clarifying questions.[/]\n")
-    problem = Prompt.ask("  Problem").strip()
-    if not problem:
-        console.print("[yellow]No input — exiting.[/]")
-        raise typer.Exit(0)
+def _open_claude_session(config: dict, existing_plan: str | None) -> None:
+    """Hand off to a full interactive Claude Code session with project context pre-loaded."""
+    name    = config["name"]
+    cloud   = config.get("cloud", "local")
+    stack   = config.get("stack")          # None for new projects — Claude will recommend
+    jira_cfg  = config.get("jira", {})
+    epic_key  = jira_cfg.get("epic_key", "none")
+    secrets   = config.get("secrets_backend", "dotenv")
+    version   = config.get("version", "0.1.0")
 
-    messages.append({"role": "user", "content": problem})
-    plan_text = ""
+    stack_line = f"- Stack: {stack}\n" if stack else "- Stack: TBD — help the developer decide\n"
 
-    while True:
-        console.print()
-        console.rule("[dim]Claude[/]", style="dim #475569")
-        console.print()
+    if existing_plan:
+        resume_block = (
+            f"\n\nThere is an existing plan to continue refining:\n\n"
+            f"```markdown\n{existing_plan}\n```\n\n"
+            f"Pick up from where we left off."
+        )
+    else:
+        resume_block = ""
 
-        response = claude_ai.stream_response(messages, system)
-        plan_text = response
-        messages.append({"role": "assistant", "content": response})
-
-        console.print()
-        console.rule(style="dim #475569")
-        console.print()
-
-        action = Prompt.ask(
-            "  [bold]What next?[/] [dim](refine / question, or Enter to accept)[/]",
-            default="",
-        ).strip()
-
-        if not action:
-            break
-
-        messages.append({"role": "user", "content": action})
-
-    return plan_text
-
-
-def _build_system(config: dict) -> str:
-    jira_cfg = config.get("jira", {})
-    epic_key = jira_cfg.get("epic_key", "none")
-    return (
-        f"{_SYSTEM}\n\n"
-        f"Project context:\n"
-        f"  name: {config['name']}\n"
-        f"  stack: {config.get('stack', 'unknown')}\n"
-        f"  cloud: {config.get('cloud', 'local')}\n"
-        f"  secrets backend: {config.get('secrets_backend', 'dotenv')}\n"
-        f"  jira epic: {epic_key}\n"
-        f"  version: {config.get('version', '0.1.0')}"
-    )
-
-
-def _write_plan(name: str, stack: str, cloud: str, plan_text: str) -> None:
-    today = date.today().isoformat()
-    content = (
-        f"# Plan — {name}\n\n"
-        f"**Date:** {today}  \n"
-        f"**Stack:** {stack}  \n"
-        f"**Cloud:** {cloud}  \n\n"
+    initial_message = (
+        f"{_SYSTEM_ROLE}\n\n"
         f"---\n\n"
-        f"{plan_text}\n"
+        f"**Project context**\n"
+        f"- Name: {name}\n"
+        f"- Cloud target: {cloud}\n"
+        f"{stack_line}"
+        f"- Secrets backend: {secrets}\n"
+        f"- Jira epic: {epic_key}\n"
+        f"- Version: {version}\n"
+        f"{resume_block}\n\n"
+        f"---\n\n"
+        f"Start by asking what the developer wants to build or solve."
     )
-    Path(PLAN_FILE).write_text(content, encoding="utf-8")
 
+    console.print("\n[bold]Opening Claude Code[/] for interactive planning.")
+    console.print("[dim]Chat naturally — ask questions, explore ideas, iterate freely.[/]")
+    console.print("[dim]When you have a plan, tell Claude to write PLAN.md.[/]")
+    console.print("[dim]Type /exit or Ctrl+C when done.\n[/]")
+
+    try:
+        subprocess.run(["claude", initial_message])
+    except FileNotFoundError:
+        console.print("[red]`claude` not found.[/] Install Claude Code: https://claude.ai/code")
+        raise typer.Exit(1)
+
+
+# ---------------------------------------------------------------------------
+# Post-session multi-stack picker
+# ---------------------------------------------------------------------------
+
+def _pick_stacks_post_session(project_name: str) -> list[tuple[str, str]]:
+    """Ask which stacks were decided in the Claude session. Returns [(service_name, stack)]."""
+    console.print("\n[bold]What stacks did you land on?[/]")
+    console.print("[dim]Enter the numbers from the menu, comma-separated. Leave blank to skip scaffolding.[/]\n")
+    print_stack_menu(console)
+
+    raw = Prompt.ask("\n  Stack numbers (e.g. 2,9 or just 2)", default="").strip()
+    if not raw:
+        return []
+
+    chosen_stacks: list[str] = []
+    skipped: list[str] = []
+    for part in raw.split(","):
+        part = part.strip()
+        try:
+            idx = int(part) - 1
+            if 0 <= idx < len(STACKS):
+                chosen_stacks.append(STACKS[idx])
+            else:
+                skipped.append(part)
+        except ValueError:
+            skipped.append(part)
+
+    if skipped:
+        console.print(f"  [yellow]Skipped invalid entries: {', '.join(skipped)}[/]")
+
+    if not chosen_stacks:
+        return []
+
+    console.print(f"\n  [bold]{len(chosen_stacks)}[/] stack(s) selected. Name each service:\n")
+    services: list[tuple[str, str]] = []
+    for stack in chosen_stacks:
+        if len(chosen_stacks) == 1:
+            default_name = project_name
+        else:
+            # e.g. my-app-api, my-app-web
+            suffix = stack.split("-")[0]   # fastapi → fastapi, react → react
+            default_name = f"{project_name}-{suffix}"
+        svc_name = Prompt.ask(f"  Service name for [cyan]{stack}[/]", default=default_name).strip()
+        if svc_name:
+            services.append((svc_name, stack))
+
+    return services
+
+
+# ---------------------------------------------------------------------------
+# Jira story helpers
+# ---------------------------------------------------------------------------
 
 def _create_stories_from_plan(config: dict, jira_cfg: dict, plan_text: str) -> None:
     console.print("\n  Extracting stories from plan...")
@@ -259,6 +280,28 @@ def _post_stories(jira_cfg: dict, stories: list[str]) -> None:
         console.print(f"\n  [bold]{len(created)}[/] stories created under [cyan]{epic_key}[/]")
     except Exception as e:
         console.print(f"  [red]Jira story creation failed: {e}[/]")
+
+
+# ---------------------------------------------------------------------------
+# Utilities
+# ---------------------------------------------------------------------------
+
+def _read_plan_if_resume(resume: bool) -> str | None:
+    if resume and Path(PLAN_FILE).exists():
+        console.print(f"[dim]Resuming from {PLAN_FILE}[/]\n")
+        return Path(PLAN_FILE).read_text(encoding="utf-8")
+    return None
+
+
+def _read_plan_or_warn() -> str:
+    if Path(PLAN_FILE).exists():
+        console.print(f"\n[green]Plan saved to[/] [bold]{PLAN_FILE}[/]")
+        return Path(PLAN_FILE).read_text(encoding="utf-8")
+    console.print(
+        f"\n[yellow]No {PLAN_FILE} found.[/] "
+        "Ask Claude to write it next time, or run [bold]proj plan[/] again."
+    )
+    return ""
 
 
 def _pick(options: list[str], raw: str, label: str) -> str:
