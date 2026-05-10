@@ -106,6 +106,7 @@
   <button class="tab" onclick="show('dev')">proj dev</button>
   <button class="tab" onclick="show('build')">proj build</button>
   <button class="tab" onclick="show('release')">proj release</button>
+  <button class="tab" onclick="show('status')">proj status</button>
   <button class="tab" onclick="show('claude')">Claude Code</button>
 </div>
 
@@ -121,6 +122,7 @@
       <div class="legend-item"><div class="dot" style="background:#1e40af"></div>Stage</div>
       <div class="legend-item"><div class="dot" style="background:#475569"></div>Action</div>
       <div class="legend-item"><div class="dot" style="background:#065f46"></div>Claude Code</div>
+      <div class="legend-item"><div class="dot" style="background:#0369a1"></div>Jira</div>
     </div>
     <div class="legend" id="legend-claude" style="display:none">
       <div class="legend-item"><div class="dot" style="background:#065f46"></div>Claude Code</div>
@@ -137,6 +139,7 @@
       <div class="diagram-pane" id="pane-dev"><div id="svg-dev"></div></div>
       <div class="diagram-pane" id="pane-build"><div id="svg-build"></div></div>
       <div class="diagram-pane" id="pane-release"><div id="svg-release"></div></div>
+      <div class="diagram-pane" id="pane-status"><div id="svg-status"></div></div>
       <div class="diagram-pane" id="pane-claude"><div id="svg-claude"></div></div>
     </div>
   </div>
@@ -167,15 +170,19 @@ flowchart TD
     CLI --> STATUS["proj status"]:::stage
     NEW --> S["Scaffold + git init + proj.yaml"]:::action
     NEW --> CG["Generate CLAUDE.md + .claude/"]:::claude
+    NEW --> J1["Create or link Jira Epic"]:::jira
     DEV --> ENV["Load secrets + run dev server"]:::action
     BUILD --> PUSH["docker build + push registry"]:::action
     RELEASE --> VER["Bump version + CHANGELOG"]:::action
-    VER --> DEPLOY["Deploy + Jira notify"]:::action
-    STATUS --> JS["Show version + Jira Epic + tickets"]:::action
+    VER --> DEPLOY["Deploy to cloud"]:::action
+    DEPLOY --> J2["Post Jira comment + transition tickets"]:::jira
+    STATUS --> GIT["Show version + git state"]:::action
+    STATUS --> J3["Read Jira Epic + open tickets"]:::jira
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
     classDef stage fill:#1e40af,stroke:#3b82f6,color:#e2e8f0
     classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
     classDef claude fill:#065f46,stroke:#059669,color:#e2e8f0
+    classDef jira fill:#0369a1,stroke:#0ea5e9,color:#e2e8f0
 `,
     init: `
 flowchart TD
@@ -275,6 +282,24 @@ flowchart TD
     classDef deploy fill:#1e3a5f,stroke:#3b82f6,color:#e2e8f0
     classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
 `,
+    status: `
+flowchart TD
+    A["proj status"]:::entry
+    A --> B["Read proj.yaml"]:::action
+    B --> C["git branch + last tag"]:::action
+    C --> D{"Jira configured?"}:::decision
+    D -->|"no"| Z1["Print local summary"]:::done
+    D -->|"yes"| E["Connect to Jira Data Center"]:::jira
+    E --> F["Fetch Epic details"]:::jira
+    F --> G["Fetch all tickets in Epic"]:::jira
+    G --> H["Display Epic status + ticket table"]:::jira
+    H --> Z2["Done"]:::done
+    classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
+    classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
+    classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
+    classDef jira fill:#0369a1,stroke:#0ea5e9,color:#e2e8f0
+    classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
+`,
     claude: `
 flowchart TD
     CC["Claude Code session"]:::claude
@@ -351,7 +376,7 @@ flowchart TD
 
   // ── Render ───────────────────────────────────────────────────
   const rendered = new Set();
-  const TABS = ['overview','init','dev','build','release','claude'];
+  const TABS = ['overview','init','dev','build','release','status','claude'];
 
   async function renderDiagram(id) {
     if (rendered.has(id)) return;
