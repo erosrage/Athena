@@ -197,7 +197,7 @@ def _open_claude_session(config: dict, existing_plan: str | None) -> None:
     try:
         subprocess.run([
             "claude",
-            "--disallowedTools", "Bash,Edit,Agent",
+            "--allowedTools", "Write",
             "--append-system-prompt", _PLANNING_SYSTEM_PROMPT,
             initial_message,
         ])

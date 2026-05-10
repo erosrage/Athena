@@ -233,7 +233,7 @@ flowchart TD
     NR -->|"yes"| RL["Load existing PLAN.md as context"]:::action
     NR -->|"no"| CC
     RL --> CC
-    EP1 --> CC["Open Claude Code — planning mode\nBash + Edit tools disabled"]:::llm
+    EP1 --> CC["Open Claude Code — planning mode\nOnly Write tool allowed"]:::llm
     CC --> CH["Developer chats freely\nClaude cannot run commands or write code"]:::llm
     CH --> WP["Claude writes PLAN.md via Write tool"]:::llm
     WP --> EX["Developer exits session"]:::action
