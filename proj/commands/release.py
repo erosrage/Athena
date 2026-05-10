@@ -10,7 +10,7 @@ import yaml
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
 
-from proj.config import load_config, save_config
+from proj.config import load_config, save_config, STACK_META
 from proj.integrations import jira as jira_mod
 
 app = typer.Typer()
@@ -28,11 +28,13 @@ def release(
 
     config = _load_or_exit()
     name   = config["name"]
+    stack  = config.get("stack", "")
     cloud  = config.get("cloud", "local")
+    meta   = STACK_META.get(stack, {})
+    build_type = meta.get("build", "container")
 
     console.print(f"\n[bold #a78bfa]proj release[/] — [bold]{name}[/]\n")
 
-    # --- Version bump ---
     old_version = config.get("version", "0.1.0")
     new_version = _bump_version(old_version, bump)
     console.print(f"  Version: [dim]{old_version}[/] → [bold green]{new_version}[/]")
@@ -47,7 +49,7 @@ def release(
     console.print("  CHANGELOG updated")
 
     # --- Version in manifest files ---
-    _bump_manifest_files(new_version, config["stack"])
+    _bump_manifest_files(new_version, meta)
 
     # --- proj.yaml version ---
     config["version"] = new_version
@@ -62,7 +64,7 @@ def release(
     console.print(f"  Tagged: [cyan]v{new_version}[/]")
 
     # --- Deploy ---
-    _deploy(cloud, name, new_version, config)
+    _deploy(build_type, cloud, name, new_version, config)
 
     # --- Jira comment + transition ---
     jira_cfg = config.get("jira", {})
@@ -106,26 +108,38 @@ def _update_changelog(name: str, version: str, log: str) -> None:
     changelog.write_text(f"{header}\n\n{entry}{rest}")
 
 
-def _bump_manifest_files(version: str, stack: str) -> None:
-    bumpers = {
-        "flask":       ("pyproject.toml", r'(version\s*=\s*")[^"]+(")', rf'\g<1>{version}\2'),
-        "ts-node":     ("package.json",   r'("version"\s*:\s*")[^"]+(")', rf'\g<1>{version}\2'),
-        "electron":    ("package.json",   r'("version"\s*:\s*")[^"]+(")', rf'\g<1>{version}\2'),
-        "rust":        ("Cargo.toml",     r'(version\s*=\s*")[^"]+(")', rf'\g<1>{version}\2'),
-        "databricks":  ("pyproject.toml", r'(version\s*=\s*")[^"]+(")', rf'\g<1>{version}\2'),
-        "go":          (None, None, None),
-    }
-    manifest, pattern, replacement = bumpers.get(stack, (None, None, None))
-    if manifest and Path(manifest).exists():
-        text = Path(manifest).read_text()
-        Path(manifest).write_text(re.sub(pattern, replacement, text, count=1))
+def _bump_manifest_files(version: str, meta: dict) -> None:
+    manifest, pattern, replacement = meta.get("manifest", (None, None, None))
+    if not manifest or not Path(manifest).exists():
+        return
+    text = Path(manifest).read_text()
+    bumped = re.sub(pattern, replacement.replace("{version}", version), text, count=1)
+    Path(manifest).write_text(bumped)
+    console.print(f"  Bumped version in [cyan]{manifest}[/]")
 
 
-def _deploy(cloud: str, name: str, version: str, config: dict) -> None:
-    if config.get("stack") == "databricks":
+def _deploy(build_type: str, cloud: str, name: str, version: str, config: dict) -> None:
+    if build_type == "databricks":
         _deploy_databricks(name, version, config)
         return
 
+    if build_type == "iac":
+        console.print(f"\n[dim]IaC release tagged. Run [bold]terraform apply[/] or [bold]pulumi up[/] to deploy.[/]")
+        return
+
+    if build_type == "data":
+        console.print(f"\n[dim]Data/ML release tagged v{version}. No automated deploy step.[/]")
+        return
+
+    if build_type == "native":
+        console.print(f"\n[dim]Native release tagged v{version}. Deploy via platform toolchain.[/]")
+        return
+
+    if build_type == "swift_native":
+        console.print(f"\n[dim]Swift release tagged v{version}. Deploy via App Store Connect / TestFlight.[/]")
+        return
+
+    # container
     console.print(f"\nDeploying to [bold]{cloud}[/]...")
     if cloud == "local":
         console.print("  [dim]Local target — skipping deploy.[/]")
@@ -151,7 +165,6 @@ def _deploy_databricks(name: str, version: str, config: dict) -> None:
     console.print(f"\nDeploying Databricks job [bold]{name}[/] v{version}...")
     _run(["dbx", "deploy", "--deployment-file", deployment_file])
 
-    # Smoke-run validation
     job_name = dbx.get("job_name", name)
     if dbx.get("launch_on_release", False):
         console.print(f"\nLaunching smoke run: [cyan]{job_name}[/]...")
@@ -174,7 +187,6 @@ def _notify_jira(jira_cfg: dict, epic_key: str, name: str, version: str, log: st
         jira_mod.post_comment(client, epic_key, body)
         console.print(f"  Comment posted on [cyan]{epic_key}[/]")
 
-        # Transition only the active story → Done
         active_key = jira_mod.load_active_ticket()
         if active_key:
             ok = jira_mod.transition_ticket(client, active_key, "Done")
@@ -182,7 +194,6 @@ def _notify_jira(jira_cfg: dict, epic_key: str, name: str, version: str, log: st
                 jira_mod.clear_active_ticket()
                 console.print(f"  [green]Jira:[/] [cyan]{active_key}[/] → Done")
 
-        # Close Epic only when every story under it is complete
         remaining = jira_mod.get_open_tickets(client, epic_key)
         if not remaining:
             jira_mod.transition_ticket(client, epic_key, "Done")

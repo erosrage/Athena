@@ -278,12 +278,16 @@ flowchart TD
     C -->|"dotenv"| D4["python-dotenv load"]:::action
     C -->|"databricks-secrets"| D5["databricks secrets get-secret"]:::dbx
     D1 & D2 & D3 & D4 & D5 --> E["Inject into environment"]:::action
-    E --> F{"Stack"}:::decision
-    F -->|"flask"| G1["flask run reload"]:::run
-    F -->|"electron"| G2["npm run dev"]:::run
+    E --> F{"Stack archetype"}:::decision
+    F -->|"terraform"| G6["terraform plan"]:::run
+    F -->|"pulumi"| G7["pulumi preview"]:::run
+    F -->|"swiftui / ios"| G8["Open in Xcode"]:::swift
+    F -->|"swift / vapor"| G9["swift run"]:::swift
+    F -->|"flask / fastapi"| G1["flask run / uvicorn reload"]:::run
+    F -->|"electron / react"| G2["npm run dev"]:::run
     F -->|"go"| G3["air live reload"]:::run
     F -->|"rust"| G4["cargo watch"]:::run
-    F -->|"ts-node"| G5["tsx watch"]:::run
+    F -->|"ts-node / nestjs"| G5["tsx watch / npm start:dev"]:::run
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
     classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
     classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
@@ -291,36 +295,46 @@ flowchart TD
     classDef dbx fill:#e25a1c,stroke:#ff6b35,color:#fff
     classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
     classDef jira fill:#0369a1,stroke:#0ea5e9,color:#e2e8f0
+    classDef swift fill:#f05138,stroke:#c0392b,color:#fff
 `,
     build: `
 flowchart TD
     A["proj build"]:::entry
-    A --> ST{"stack?"}:::decision
-    ST -->|"databricks"| DB1["python -m build --wheel"]:::action
-    DB1 --> DB2["Upload wheel to DBFS"]:::action
-    DB2 --> DB3["dbx deploy job definition"]:::action
-    DB3 --> R
-    ST -->|"other"| B["Read proj.yaml"]:::action
-    B --> C["Generate image tag (sha + version)"]:::action
+    A --> BT{"Build archetype"}:::decision
+    BT -->|"databricks"| DB1["python -m build --wheel"]:::dbx
+    DB1 --> DB2["Upload wheel to DBFS"]:::dbx
+    DB2 --> DB3["dbx deploy job definition"]:::dbx
+    DB3 --> JOK
+    BT -->|"iac"| IaC["terraform plan / pulumi preview"]:::action
+    IaC --> JOK
+    BT -->|"data"| DATA["Tag only — no artifact"]:::action
+    DATA --> JOK
+    BT -->|"native"| NAT["Platform toolchain — no Docker"]:::action
+    NAT --> JOK
+    BT -->|"swift_native"| SW["swift build -c release / xcodebuild archive"]:::swift
+    SW --> JOK
+    BT -->|"container"| C["Generate image tag (sha + version)"]:::action
     C --> D{"Multi-arch?"}:::decision
     D -->|"Yes"| E["docker buildx --platform linux/amd64,arm64"]:::action
     D -->|"No"| F["docker build"]:::action
     E & F --> R{"Build ok?"}:::decision
-    R -->|"success"| G{"Cloud target"}:::decision
-    R -->|"failure"| JF["Post failure comment to Jira ticket"]:::jira
+    R -->|"failure"| JF["Post failure comment to Jira"]:::jira
     JF --> FAIL["Exit 1"]:::done
+    R -->|"success"| G{"Cloud target"}:::decision
     G -->|"Azure"| H1["push to ACR"]:::cloud
     G -->|"AWS"| H2["push to ECR"]:::cloud
     G -->|"GCP"| H3["push to GCR"]:::cloud
     G -->|"Local"| H4["keep local"]:::cloud
     H1 & H2 & H3 & H4 --> JOK["Transition active ticket → In Review"]:::jira
-    JOK --> Z["Image ready"]:::done
+    JOK --> Z["Done"]:::done
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
     classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
     classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
     classDef cloud fill:#1e3a5f,stroke:#3b82f6,color:#e2e8f0
     classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
+    classDef dbx fill:#e25a1c,stroke:#ff6b35,color:#fff
     classDef jira fill:#0369a1,stroke:#0ea5e9,color:#e2e8f0
+    classDef swift fill:#f05138,stroke:#c0392b,color:#fff
 `,
     release: `
 flowchart TD

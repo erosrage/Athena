@@ -156,18 +156,25 @@ flowchart TD
 ```mermaid
 flowchart TD
     A["proj build"]:::entry
-    A --> ST{"Stack"}:::decision
-    ST -->|"databricks"| DB1["python -m build --wheel"]:::dbx
+    A --> BT{"Build archetype"}:::decision
+    BT -->|"databricks"| DB1["python -m build --wheel"]:::dbx
     DB1 --> DB2["Upload wheel to DBFS"]:::dbx
     DB2 --> DB3["dbx deploy job definition"]:::dbx
-    DB3 --> R
-    ST -->|"other"| B["Read proj.yaml"]:::action
-    B --> C["Generate image tag (sha + version)"]:::action
+    DB3 --> JOK
+    BT -->|"iac"| IaC["terraform plan / pulumi preview"]:::action
+    IaC --> JOK
+    BT -->|"data"| DATA["Tag only — no artifact"]:::action
+    DATA --> JOK
+    BT -->|"native"| NAT["Platform toolchain — no Docker"]:::action
+    NAT --> JOK
+    BT -->|"swift_native"| SW["swift build -c release / xcodebuild archive"]:::swift
+    SW --> JOK
+    BT -->|"container"| C["Generate image tag (sha + version)"]:::action
     C --> D{"Multi-arch?"}:::decision
     D -->|"Yes"| E["docker buildx --platform linux/amd64,arm64"]:::action
     D -->|"No"| F["docker build"]:::action
     E & F --> R{"Build ok?"}:::decision
-    R -->|"failure"| JF["Post failure comment to Jira ticket"]:::jira
+    R -->|"failure"| JF["Post failure comment to Jira"]:::jira
     JF --> FAIL["Exit 1"]:::done
     R -->|"success"| G{"Cloud target"}:::decision
     G -->|"Azure"| H1["push to ACR"]:::cloud
@@ -175,7 +182,7 @@ flowchart TD
     G -->|"GCP"| H3["push to GCR"]:::cloud
     G -->|"Local"| H4["keep local"]:::cloud
     H1 & H2 & H3 & H4 --> JOK["Transition active ticket → In Review"]:::jira
-    JOK --> Z["Image ready"]:::done
+    JOK --> Z["Done"]:::done
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
     classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
     classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
@@ -183,6 +190,7 @@ flowchart TD
     classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
     classDef dbx fill:#e25a1c,stroke:#ff6b35,color:#fff
     classDef jira fill:#0369a1,stroke:#0ea5e9,color:#e2e8f0
+    classDef swift fill:#f05138,stroke:#c0392b,color:#fff
 ```
 
 ---
@@ -280,7 +288,15 @@ proj new my-project
 
 ## Stacks
 
-`flask` · `electron` · `go` · `rust` · `ts-node` · `bi-report` · `databricks`
+**Python:** `flask` · `fastapi` · `django` · `python-cli` · `streamlit`  
+**Node/TS:** `express` · `nestjs` · `ts-node`  
+**Frontend:** `react` · `nextjs` · `vue` · `svelte` · `angular`  
+**Systems:** `go` · `rust` · `dotnet`  
+**Desktop/Mobile:** `electron` · `tauri` · `react-native` · `flutter`  
+**Data/ML:** `databricks` · `jupyter` · `mlflow` · `dbt` · `bi-report`  
+**Other Backend:** `spring-boot` · `rails` · `laravel`  
+**IaC:** `terraform` · `pulumi`  
+**Swift/Apple:** `swift` · `vapor` · `swiftui` · `ios`
 
 ## Clouds
 

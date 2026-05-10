@@ -49,8 +49,13 @@ STACK_COMMANDS: dict[str, list[str] | None] = {
     "rails":        ["bin/rails", "server"],
     "laravel":      ["php", "artisan", "serve"],
     # IaC
-    "terraform":    ["terraform", "plan"],
-    "pulumi":       ["pulumi", "preview"],
+    "terraform":    None,   # handled separately — confirm before plan
+    "pulumi":       None,   # handled separately — confirm before preview
+    # Swift / Apple
+    "swift":        ["swift", "run"],
+    "vapor":        ["swift", "run"],
+    "swiftui":      None,   # Xcode-only
+    "ios":          None,   # Xcode-only
 }
 
 
@@ -75,6 +80,22 @@ def dev(ctx: typer.Context):
     # --- Databricks: sync to Repos instead of running locally ---
     if stack == "databricks":
         _databricks_dev(config)
+        return
+
+    # --- IaC: confirm before running plan/preview ---
+    if stack == "terraform":
+        console.print("[bold]Terraform[/] — running [cyan]terraform plan[/]")
+        subprocess.run(["terraform", "plan"], check=False)
+        return
+    if stack == "pulumi":
+        console.print("[bold]Pulumi[/] — running [cyan]pulumi preview[/]")
+        subprocess.run(["pulumi", "preview"], check=False)
+        return
+
+    # --- Xcode-only stacks ---
+    if stack in ("swiftui", "ios"):
+        console.print(f"[bold]{stack}[/] — open your Xcode project to run on simulator/device.")
+        console.print("  [dim]No terminal dev server for this stack.[/]")
         return
 
     # --- Resolve and run dev command ---
