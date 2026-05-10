@@ -27,5 +27,8 @@ proj = "proj.main:app"
 [project.optional-dependencies]
 dev = ["pytest", "pytest-mock", "ruff"]
 
+[tool.hatch.build.targets.wheel]
+packages = ["proj"]
+
 [tool.ruff]
 line-length = 100
