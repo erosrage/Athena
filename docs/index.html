@@ -227,22 +227,20 @@ flowchart TD
 flowchart TD
     A["proj plan"]:::entry
     A --> M{"proj.yaml exists?"}:::decision
-    M -->|"no — new project"| NP1["Prompt: name + stack + cloud"]:::prompt
+    M -->|"no — new project"| NP1["Prompt: name + cloud target"]:::prompt
     M -->|"yes — existing project"| EP1["Read proj.yaml"]:::action
-    NP1 --> P["Prompt: describe the problem"]:::prompt
-    EP1 --> P
-    P --> L["Pipe prompt to claude -p (Claude Code CLI)"]:::llm
-    L --> R["Stream response to terminal"]:::llm
-    R --> F{"Refine?"}:::decision
-    F -->|"yes"| L
-    F -->|"accept"| G["Write PLAN.md"]:::action
-    G --> MX{"Mode?"}:::decision
-    MX -->|"new project"| SC{"Scaffold now?"}:::decision
-    SC -->|"yes"| SN["Run proj new"]:::action
-    SC -->|"no"| Z["Done"]:::done
-    SN --> Z
+    NP1 --> CC["Open Claude Code — full interactive session"]:::llm
+    EP1 --> CC
+    CC --> CH["Developer chats freely — Claude asks questions,\nexplores problem, recommends stacks"]:::llm
+    CH --> WP["Claude writes PLAN.md via Write tool"]:::llm
+    WP --> EX["Developer exits session"]:::action
+    EX --> MX{"Mode?"}:::decision
+    MX -->|"new project"| MS["Multi-stack picker\nEnter stack numbers comma-separated"]:::prompt
+    MS --> SN["Name each service\ne.g. my-app-api, my-app-web"]:::prompt
+    SN --> SC["proj new per service\n--stack and --cloud pre-filled"]:::action
+    SC --> Z["Done"]:::done
     MX -->|"existing project"| SM{"Story method"}:::decision
-    SM -->|"1 — extract via Claude"| H["Claude extracts stories"]:::llm
+    SM -->|"1 — extract via Claude"| H["claude -p extracts stories from PLAN.md"]:::llm
     SM -->|"2 — enter manually"| MN["Prompt: enter stories one by one"]:::prompt
     SM -->|"3 — skip"| Z
     H --> I["Preview + confirm"]:::action
