@@ -17,10 +17,15 @@ console = Console()
 
 PLAN_FILE = "PLAN.md"
 
-_SYSTEM_ROLE = """\
-You are a senior software architect and tech lead helping a developer plan a project.
+_PLANNING_SYSTEM_PROMPT = """\
+You are in PLANNING MODE. Your role is strictly to help the developer think through what they want to build — ask questions, explore the problem, and design the architecture together.
 
-Help them think through what they want to build. Ask clarifying questions. Explore the problem before jumping to solutions. When the architecture starts to take shape, recommend specific stacks, services, and patterns grounded in the project's cloud target.
+Rules for this session:
+- Do NOT write any code
+- Do NOT run any commands
+- Do NOT scaffold files or directories (other than PLAN.md when explicitly asked)
+- Do NOT attempt to implement anything
+- ONLY ask questions, discuss trade-offs, and recommend approaches
 
 When the developer is happy with the plan, write it to PLAN.md using your Write tool. The plan should cover:
 1. **Problem Summary** — 2-3 sentences restating the problem clearly
@@ -76,6 +81,7 @@ def _plan_new(resume: bool) -> None:
         console.print(f"\n[dim]When ready:[/] [bold]proj new {name}[/]")
         return
 
+    scaffolded: list[str] = []
     console.print()
     for svc_name, stack in services:
         if Confirm.ask(f"  Scaffold [bold]{svc_name}[/] ([cyan]{stack}[/] / [cyan]{cloud}[/])?", default=True):
@@ -85,6 +91,11 @@ def _plan_new(resume: bool) -> None:
                  "--stack", stack, "--cloud", cloud],
                 check=False,
             )
+            scaffolded.append(svc_name)
+
+    # Offer Jira story creation from plan using the first scaffolded service's config
+    if scaffolded and plan_text:
+        _maybe_create_stories_new_project(scaffolded[0], plan_text)
 
 
 # ---------------------------------------------------------------------------
@@ -156,8 +167,6 @@ def _open_claude_session(config: dict, existing_plan: str | None) -> None:
         resume_block = ""
 
     initial_message = (
-        f"{_SYSTEM_ROLE}\n\n"
-        f"---\n\n"
         f"**Project context**\n"
         f"- Name: {name}\n"
         f"- Cloud target: {cloud}\n"
@@ -166,17 +175,21 @@ def _open_claude_session(config: dict, existing_plan: str | None) -> None:
         f"- Jira epic: {epic_key}\n"
         f"- Version: {version}\n"
         f"{resume_block}\n\n"
-        f"---\n\n"
         f"Start by asking what the developer wants to build or solve."
     )
 
-    console.print("\n[bold]Opening Claude Code[/] for interactive planning.")
-    console.print("[dim]Chat naturally — ask questions, explore ideas, iterate freely.[/]")
-    console.print("[dim]When you have a plan, tell Claude to write PLAN.md.[/]")
+    console.print("\n[bold]Opening Claude Code[/] — planning mode.")
+    console.print("[dim]Chat naturally. Claude cannot run commands or write code in this session.[/]")
+    console.print("[dim]When you have a plan, say 'write the plan' — Claude will create PLAN.md.[/]")
     console.print("[dim]Type /exit or Ctrl+C when done.\n[/]")
 
     try:
-        subprocess.run(["claude", initial_message])
+        subprocess.run([
+            "claude",
+            "--disallowedTools", "Bash", "Edit",
+            "--append-system-prompt", _PLANNING_SYSTEM_PROMPT,
+            initial_message,
+        ])
     except FileNotFoundError:
         console.print("[red]`claude` not found.[/] Install Claude Code: https://claude.ai/code")
         raise typer.Exit(1)
@@ -234,6 +247,34 @@ def _pick_stacks_post_session(project_name: str) -> list[tuple[str, str]]:
 # ---------------------------------------------------------------------------
 # Jira story helpers
 # ---------------------------------------------------------------------------
+
+def _maybe_create_stories_new_project(svc_name: str, plan_text: str) -> None:
+    """After proj new scaffolds a service, offer Jira story creation if Jira is configured."""
+    import yaml
+    proj_yaml = Path(svc_name) / "proj.yaml"
+    if not proj_yaml.exists():
+        return
+    with open(proj_yaml) as f:
+        config = yaml.safe_load(f)
+    jira_cfg    = config.get("jira", {})
+    base_url    = jira_cfg.get("base_url")
+    token       = jira_cfg.get("token")
+    project_key = jira_cfg.get("project_key")
+    epic_key    = jira_cfg.get("epic_key")
+    if not all([base_url, token, project_key, epic_key]):
+        return
+    console.print(f"\n[bold]Jira stories[/] — create stories from your plan under [cyan]{epic_key}[/]?")
+    console.print("  [cyan]1[/]. Extract stories from plan via Claude")
+    console.print("  [cyan]2[/]. Enter stories manually")
+    console.print("  [cyan]3[/]. Skip")
+    choice = Prompt.ask("  Choice", default="1").strip()
+    if choice == "1":
+        _create_stories_from_plan(config, jira_cfg, plan_text)
+    elif choice == "2":
+        _create_stories_manual(jira_cfg)
+    else:
+        console.print("  [dim]Skipped — run proj plan inside the project later to add stories.[/]")
+
 
 def _create_stories_from_plan(config: dict, jira_cfg: dict, plan_text: str) -> None:
     console.print("\n  Extracting stories from plan...")
