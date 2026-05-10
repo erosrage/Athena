@@ -108,6 +108,7 @@
   <button class="tab" onclick="show('build')">proj build</button>
   <button class="tab" onclick="show('release')">proj release</button>
   <button class="tab" onclick="show('status')">proj status</button>
+  <button class="tab" onclick="show('help')">proj help</button>
   <button class="tab" onclick="show('claude')">Claude Code</button>
 </div>
 
@@ -143,6 +144,7 @@
       <div class="diagram-pane" id="pane-build"><div id="svg-build"></div></div>
       <div class="diagram-pane" id="pane-release"><div id="svg-release"></div></div>
       <div class="diagram-pane" id="pane-status"><div id="svg-status"></div></div>
+      <div class="diagram-pane" id="pane-help"><div id="svg-help"></div></div>
       <div class="diagram-pane" id="pane-claude"><div id="svg-claude"></div></div>
     </div>
   </div>
@@ -172,7 +174,8 @@ flowchart TD
     CLI --> BUILD["④ proj build"]:::stage
     CLI --> RELEASE["⑤ proj release"]:::stage
     CLI --> STATUS["proj status"]:::stage
-    PLAN --> LLM["Claude API solutioning loop"]:::llm
+    CLI --> HELP["proj help"]:::stage
+    PLAN --> LLM["claude CLI solutioning loop"]:::llm
     LLM --> PM["Write PLAN.md"]:::action
     LLM --> J4["Generate + create Jira stories"]:::jira
     PLAN -->|"scaffold now?"| NEW
@@ -183,9 +186,10 @@ flowchart TD
     BUILD --> PUSH["docker build + push registry"]:::action
     RELEASE --> VER["Bump version + CHANGELOG"]:::action
     VER --> DEPLOY["Deploy to cloud"]:::action
-    DEPLOY --> J2["Post Jira comment + transition tickets"]:::jira
+    DEPLOY --> J2["Story → Done · Epic → Done if all complete"]:::jira
     STATUS --> GIT["Show version + git state"]:::action
     STATUS --> J3["Read Jira Epic + open tickets"]:::jira
+    HELP --> HL["List commands, phases, flags"]:::action
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
     classDef stage fill:#1e40af,stroke:#3b82f6,color:#e2e8f0
     classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
@@ -198,7 +202,8 @@ flowchart TD
     A["proj new name"]:::entry
     A --> B["Prompt: pick stack"]:::prompt
     B --> C["Prompt: cloud target"]:::prompt
-    C --> J{"Jira Epic"}:::decision
+    C --> SB["Prompt: secrets backend"]:::prompt
+    SB --> J{"Jira Epic"}:::decision
     J -->|"Use existing"| J1["Prompt: enter Epic key"]:::prompt
     J -->|"Create new"| J2["POST Jira API - create Epic"]:::jira
     J1 --> J3["Validate Epic exists"]:::jira
@@ -226,8 +231,8 @@ flowchart TD
     M -->|"yes — existing project"| EP1["Read proj.yaml"]:::action
     NP1 --> P["Prompt: describe the problem"]:::prompt
     EP1 --> P
-    P --> L["Send to Claude API with project context"]:::llm
-    L --> R["Stream architecture proposal"]:::llm
+    P --> L["Pipe prompt to claude -p (Claude Code CLI)"]:::llm
+    L --> R["Stream response to terminal"]:::llm
     R --> F{"Refine?"}:::decision
     F -->|"yes"| L
     F -->|"accept"| G["Write PLAN.md"]:::action
@@ -330,15 +335,20 @@ flowchart TD
     G -->|"Azure"| H2["az webapp deploy"]:::deploy
     G -->|"AWS"| H3["ecs update-service"]:::deploy
     G -->|"GCP"| H4["gcloud run deploy"]:::deploy
-    H1 & H2 & H3 & H4 --> I["Post webhook"]:::action
-    I --> J["Post Jira comment + tag stakeholders"]:::action
-    J --> Z["Released"]:::done
+    H1 & H2 & H3 & H4 --> WH["Post webhook"]:::action
+    WH --> JC["Post Jira comment + tag stakeholders"]:::jira
+    JC --> JS["Active story → Done"]:::jira
+    JS --> JE{"All stories done?"}:::decision
+    JE -->|"yes"| JED["Epic → Done"]:::jira
+    JE -->|"no"| Z["Released — Epic stays active"]:::done
+    JED --> Z
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
     classDef prompt fill:#0f4c75,stroke:#1b6ca8,color:#e2e8f0
     classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
     classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
     classDef deploy fill:#1e3a5f,stroke:#3b82f6,color:#e2e8f0
     classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
+    classDef jira fill:#0369a1,stroke:#0ea5e9,color:#e2e8f0
 `,
     status: `
 flowchart TD
@@ -357,6 +367,25 @@ flowchart TD
     classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
     classDef jira fill:#0369a1,stroke:#0ea5e9,color:#e2e8f0
     classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
+`,
+    help: `
+flowchart LR
+    A["proj help"]:::entry
+    A --> T["Command table"]:::action
+    T --> P1["① proj plan — brainstorm + architect"]:::stage
+    T --> P2["② proj new — scaffold project"]:::stage
+    T --> P3["③ proj dev — start dev loop"]:::stage
+    T --> P4["④ proj build — build + push"]:::stage
+    T --> P5["⑤ proj release — version + deploy"]:::stage
+    T --> P6["proj status — git + Jira summary"]:::stage
+    T --> P7["proj mcp — start MCP server"]:::stage
+    T --> P8["proj help — this screen"]:::stage
+    A --> F["Flags table"]:::action
+    F --> F1["--resume · --multi-arch · --no-push"]:::action
+    F --> F2["--bump minor|major · --dry-run"]:::action
+    classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
+    classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
+    classDef stage fill:#1e40af,stroke:#3b82f6,color:#e2e8f0
 `,
     claude: `
 flowchart TD
@@ -434,7 +463,7 @@ flowchart TD
 
   // ── Render ───────────────────────────────────────────────────
   const rendered = new Set();
-  const TABS = ['overview','init','plan','dev','build','release','status','claude'];
+  const TABS = ['overview','init','plan','dev','build','release','status','help','claude'];
 
   async function renderDiagram(id) {
     if (rendered.has(id)) return;

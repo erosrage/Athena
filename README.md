@@ -19,7 +19,7 @@ flowchart TD
     CLI --> BUILD["④ proj build"]:::stage
     CLI --> RELEASE["⑤ proj release"]:::stage
     CLI --> STATUS["proj status"]:::stage
-    PLAN --> LLM["Claude API solutioning loop"]:::llm
+    PLAN --> LLM["claude CLI solutioning loop"]:::llm
     LLM --> PM["Write PLAN.md"]:::action
     LLM --> J4["Generate + create Jira stories"]:::jira
     PLAN -->|"scaffold now?"| NEW
@@ -29,7 +29,7 @@ flowchart TD
     DEV --> ENV["Load secrets + run dev server"]:::action
     BUILD --> PUSH["docker build + push registry"]:::action
     RELEASE --> VER["Bump version + CHANGELOG"]:::action
-    VER --> DEPLOY["Deploy + Jira notify"]:::action
+    VER --> DEPLOY["Deploy + story → Done · Epic → Done if complete"]:::jira
     STATUS --> JS["Show version + Jira Epic + tickets"]:::action
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
     classDef stage fill:#1e40af,stroke:#3b82f6,color:#e2e8f0
@@ -82,8 +82,8 @@ flowchart TD
     M -->|"yes — existing project"| EP1["Read proj.yaml"]:::action
     NP1 --> P["Prompt: describe the problem"]:::prompt
     EP1 --> P
-    P --> L["Send to Claude API with project context"]:::llm
-    L --> R["Stream architecture proposal"]:::llm
+    P --> L["Pipe prompt to claude -p (Claude Code CLI)"]:::llm
+    L --> R["Stream response to terminal"]:::llm
     R --> F{"Refine?"}:::decision
     F -->|"yes"| L
     F -->|"accept"| G["Write PLAN.md"]:::action
@@ -209,8 +209,12 @@ flowchart TD
     G -->|"AWS"| H3["ecs update-service"]:::deploy
     G -->|"GCP"| H4["gcloud run deploy"]:::deploy
     H1 & H2 & H3 & H4 --> N
-    N --> I["Post Jira comment + tag stakeholders"]:::action
-    I --> Z["Released"]:::done
+    N --> JC["Post Jira comment + tag stakeholders"]:::jira
+    JC --> JS["Active story → Done"]:::jira
+    JS --> JE{"All stories done?"}:::decision
+    JE -->|"yes"| JED["Epic → Done"]:::jira
+    JE -->|"no"| Z["Released — Epic stays active"]:::done
+    JED --> Z
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
     classDef prompt fill:#0f4c75,stroke:#1b6ca8,color:#e2e8f0
     classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
@@ -218,6 +222,7 @@ flowchart TD
     classDef deploy fill:#1e3a5f,stroke:#3b82f6,color:#e2e8f0
     classDef done fill:#065f46,stroke:#059669,color:#e2e8f0
     classDef dbx fill:#e25a1c,stroke:#ff6b35,color:#fff
+    classDef jira fill:#0369a1,stroke:#0ea5e9,color:#e2e8f0
 ```
 
 ---
@@ -264,12 +269,14 @@ proj new my-project
 
 | Command | Description |
 |---|---|
+| `proj plan` | LLM-assisted solutioning via Claude Code CLI — writes PLAN.md, creates Jira stories |
 | `proj new <name>` | Scaffold a new project — stack, cloud, secrets, Jira Epic |
-| `proj dev` | Load secrets and start the dev server |
+| `proj dev` | Pick Jira ticket, load secrets, start dev server |
 | `proj build` | Docker build + push to cloud registry (or Databricks wheel upload) |
-| `proj release` | Bump version, deploy, update Jira, notify stakeholders |
+| `proj release` | Bump version, deploy, close Jira story, notify stakeholders |
 | `proj status` | Show version, git state, and live Jira Epic + tickets |
 | `proj mcp` | Start MCP server for Claude Code integration |
+| `proj help` | List all commands, lifecycle order, and common flags |
 
 ## Stacks
 
