@@ -79,6 +79,7 @@ def new(
     jira_project  = Prompt.ask("  Jira project key (e.g. BPOE)")
 
     epic_key: str | None = None
+    stakeholders: list[str] = []
     client = None
 
     if Confirm.ask("  Link to an existing Epic?"):
@@ -115,15 +116,22 @@ def new(
 
     # --- Scaffold ---
     project_dir = output_dir / name
+    in_place = False
     if project_dir.exists():
-        console.print(f"\n[red]Directory {project_dir} already exists.[/]")
-        raise typer.Exit(1)
+        if (project_dir / "proj.yaml").exists():
+            console.print(f"\n[red]Directory {project_dir} already exists with a proj.yaml.[/]")
+            raise typer.Exit(1)
+        console.print(f"\n[yellow]Directory {project_dir} exists but has no proj.yaml.[/]")
+        if not Confirm.ask("  Initialize proj in-place (writes proj.yaml and config files, skips template copy)?", default=True):
+            raise typer.Exit(0)
+        in_place = True
 
-    template_src = TEMPLATES_DIR / stack
-    if template_src.exists():
-        shutil.copytree(template_src, project_dir)
-    else:
-        project_dir.mkdir(parents=True)
+    if not in_place:
+        template_src = TEMPLATES_DIR / stack
+        if template_src.exists():
+            shutil.copytree(template_src, project_dir)
+        else:
+            project_dir.mkdir(parents=True)
 
     # Write proj.yaml
     config = {
@@ -159,15 +167,19 @@ def new(
     claude_code.scaffold(project_dir, config)
     console.print("[green]OK[/]")
 
-    # git init
+    # git init (safe to re-run if repo already exists)
     subprocess.run(["git", "init"], cwd=project_dir, check=True, capture_output=True)
     subprocess.run(["git", "add", "."], cwd=project_dir, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "commit", "-m", f"chore: init {name}"],
-        cwd=project_dir, check=True, capture_output=True,
+    commit_msg = f"chore: proj init {name}" if in_place else f"chore: init {name}"
+    result = subprocess.run(
+        ["git", "commit", "-m", commit_msg],
+        cwd=project_dir, capture_output=True,
     )
+    if result.returncode != 0 and b"nothing to commit" not in result.stdout + result.stderr:
+        console.print(f"  [yellow]git commit warning: {result.stderr.decode().strip()}[/]")
 
-    console.print(f"\n[bold green]Done![/] Project created at [bold]{project_dir}[/]")
+    action = "initialized in" if in_place else "created at"
+    console.print(f"\n[bold green]Done![/] Project {action} [bold]{project_dir}[/]")
     console.print(f"  Stack:   [cyan]{stack}[/]")
     console.print(f"  Cloud:   [cyan]{cloud}[/]")
     console.print(f"  Secrets: [cyan]{secrets_backend}[/]")
