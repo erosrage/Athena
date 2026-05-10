@@ -8,7 +8,7 @@ import typer
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
 
-from proj.config import STACKS, CLOUDS, load_config
+from proj.config import STACKS, CLOUDS, load_config, print_stack_menu
 from proj.integrations import claude_ai
 from proj.integrations import jira as jira_mod
 
@@ -61,9 +61,8 @@ def _plan_new(resume: bool) -> None:
         raise typer.Exit(0)
 
     console.print("\n  Pick a stack:")
-    for i, s in enumerate(STACKS, 1):
-        console.print(f"    [cyan]{i}[/]. {s}")
-    stack = STACKS[int(Prompt.ask("  Choice", default="1")) - 1]
+    print_stack_menu(console)
+    stack = STACKS[int(Prompt.ask("\n  Choice", default="1")) - 1]
 
     console.print("\n  Pick a cloud target:")
     for i, c in enumerate(CLOUDS, 1):

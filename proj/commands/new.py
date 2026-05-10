@@ -9,7 +9,7 @@ import yaml
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
 
-from proj.config import STACKS, CLOUDS, SECRETS_BACKENDS
+from proj.config import STACKS, CLOUDS, SECRETS_BACKENDS, print_stack_menu
 from proj.integrations import jira as jira_mod
 from proj.integrations import claude_code
 
@@ -30,9 +30,8 @@ def new(
 
     # --- Stack ---
     console.print("[bold]Step 1/4[/] Pick a stack:")
-    for i, s in enumerate(STACKS, 1):
-        console.print(f"  [cyan]{i}[/]. {s}")
-    stack_idx = int(Prompt.ask("  Choice", default="1")) - 1
+    print_stack_menu(console)
+    stack_idx = int(Prompt.ask("\n  Choice", default="1")) - 1
     stack = STACKS[stack_idx]
 
     # --- Cloud ---

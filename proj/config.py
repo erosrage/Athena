@@ -1,11 +1,43 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 import yaml
+
+if TYPE_CHECKING:
+    from rich.console import Console
 
 PROJ_FILE = "proj.yaml"
 
-STACKS = ["flask", "electron", "go", "rust", "ts-node", "bi-report", "databricks"]
-CLOUDS  = ["azure", "aws", "gcp", "local"]
+# Ordered dict — category → stacks. STACKS is derived from this.
+STACK_CATEGORIES: dict[str, list[str]] = {
+    "Python":           ["flask", "fastapi", "django", "python-cli", "streamlit"],
+    "Node/TypeScript":  ["express", "nestjs", "ts-node"],
+    "Frontend":         ["react", "nextjs", "vue", "svelte", "angular"],
+    "Systems":          ["go", "rust", "dotnet"],
+    "Desktop/Mobile":   ["electron", "tauri", "react-native", "flutter"],
+    "Data/ML":          ["databricks", "jupyter", "mlflow", "dbt", "bi-report"],
+    "Other Backend":    ["spring-boot", "rails", "laravel"],
+    "IaC":              ["terraform", "pulumi"],
+}
+
+STACKS: list[str] = [s for stacks in STACK_CATEGORIES.values() for s in stacks]
+
+CLOUDS           = ["azure", "aws", "gcp", "local"]
 SECRETS_BACKENDS = ["dotenv", "sops", "azure-keyvault", "aws-ssm", "databricks-secrets"]
+
+
+def print_stack_menu(console: "Console") -> None:
+    """Print a categorized, numbered stack menu."""
+    idx = 1
+    for category, stacks in STACK_CATEGORIES.items():
+        console.print(f"\n  [dim]{category}[/]")
+        # Two columns
+        pairs = []
+        for stack in stacks:
+            pairs.append(f"  [cyan]{idx:>2}[/]. {stack:<18}")
+            idx += 1
+        # Print in rows of 2
+        for i in range(0, len(pairs), 2):
+            console.print("".join(pairs[i:i+2]))
 
 
 def find_proj_root() -> Path:

@@ -12,14 +12,45 @@ from proj.integrations import jira as jira_mod
 app = typer.Typer()
 console = Console()
 
-STACK_COMMANDS: dict[str, list[str]] = {
-    "flask":       [sys.executable, "-m", "flask", "run", "--reload"],
-    "electron":    ["npm", "run", "dev"],
-    "go":          ["air"],
-    "rust":        ["cargo", "watch", "-x", "run"],
-    "ts-node":     ["npx", "tsx", "watch", "src/index.ts"],
-    "bi-report":   [sys.executable, "scripts/refresh.py"],
-    "databricks":  None,  # handled separately below
+STACK_COMMANDS: dict[str, list[str] | None] = {
+    # Python
+    "flask":        [sys.executable, "-m", "flask", "run", "--reload"],
+    "fastapi":      ["uvicorn", "main:app", "--reload"],
+    "django":       [sys.executable, "manage.py", "runserver"],
+    "python-cli":   [sys.executable, "-m", "pytest", "-v", "--tb=short"],
+    "streamlit":    ["streamlit", "run", "app.py"],
+    # Node / TypeScript
+    "express":      ["npx", "nodemon", "src/index.js"],
+    "nestjs":       ["npm", "run", "start:dev"],
+    "ts-node":      ["npx", "tsx", "watch", "src/index.ts"],
+    # Frontend
+    "react":        ["npm", "run", "dev"],
+    "nextjs":       ["npm", "run", "dev"],
+    "vue":          ["npm", "run", "dev"],
+    "svelte":       ["npm", "run", "dev"],
+    "angular":      ["npm", "start"],
+    # Systems
+    "go":           ["air"],
+    "rust":         ["cargo", "watch", "-x", "run"],
+    "dotnet":       ["dotnet", "watch", "run"],
+    # Desktop / Mobile
+    "electron":     ["npm", "run", "dev"],
+    "tauri":        ["npm", "run", "tauri", "dev"],
+    "react-native": ["npx", "react-native", "start"],
+    "flutter":      ["flutter", "run"],
+    # Data / ML
+    "databricks":   None,   # handled separately
+    "jupyter":      ["jupyter", "lab"],
+    "mlflow":       [sys.executable, "-m", "mlflow", "ui"],
+    "dbt":          ["dbt", "docs", "serve"],
+    "bi-report":    [sys.executable, "scripts/refresh.py"],
+    # Other Backend
+    "spring-boot":  ["./mvnw", "spring-boot:run"],
+    "rails":        ["bin/rails", "server"],
+    "laravel":      ["php", "artisan", "serve"],
+    # IaC
+    "terraform":    ["terraform", "plan"],
+    "pulumi":       ["pulumi", "preview"],
 }
 
 
