@@ -26,7 +26,8 @@ flowchart TD
     NEW --> S["Scaffold + git init + proj.yaml"]:::action
     NEW --> CG["Generate CLAUDE.md + .claude/"]:::claude
     NEW --> J1["Create or link Jira Epic"]:::jira
-    DEV --> ENV["Load secrets + run dev server"]:::action
+    DEV --> J5["Jira: pick ticket → In Progress"]:::jira
+    J5 --> ENV["Load secrets + run dev server"]:::action
     BUILD --> PUSH["docker build + push registry"]:::action
     RELEASE --> VER["Bump version + CHANGELOG"]:::action
     VER --> DEPLOY["Deploy + story → Done · Epic → Done if complete"]:::jira
@@ -78,7 +79,7 @@ flowchart TD
 flowchart TD
     A["proj plan"]:::entry
     A --> M{"proj.yaml exists?"}:::decision
-    M -->|"no — new project"| NP1["Prompt: name + cloud target"]:::prompt
+    M -->|"no — new project"| NP1["name arg + --cloud flag\n(prompted if omitted)"]:::prompt
     M -->|"yes — existing project"| EP1["Read proj.yaml\nAuto-load PLAN.md if it exists"]:::action
     NP1 --> NR{"--resume flag?\nPLAN.md exists?"}:::decision
     NR -->|"yes"| RL["Load existing PLAN.md as context"]:::action
@@ -121,11 +122,15 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["proj dev"]:::entry
+    A["proj dev\n[--ticket KEY] [--skip-jira]"]:::entry
     A --> B["Read proj.yaml"]:::action
-    B --> JT["Fetch open Jira tickets in Epic"]:::jira
-    JT --> JP["Prompt: pick ticket to work on"]:::prompt
-    JP --> JI["Transition ticket → In Progress"]:::jira
+    B --> SJ{"--skip-jira?"}:::decision
+    SJ -->|"yes"| ST
+    SJ -->|"no"| TK{"--ticket flag?"}:::decision
+    TK -->|"yes — e.g. PROJ-42"| JI["Transition specified ticket → In Progress"]:::jira
+    TK -->|"no"| JT["Fetch open Epic tickets"]:::jira
+    JT --> JP["Pick active ticket"]:::jira
+    JP --> JI
     JI --> ST{"Stack"}:::decision
     ST -->|"databricks"| SEC2["Load secrets"]:::action
     SEC2 --> DB["databricks repos update"]:::dbx
@@ -205,32 +210,34 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["proj release"]:::entry
-    A --> B["Prompt: major / minor / patch"]:::prompt
+    A["proj release\n[--bump patch|minor|major] [--no-deploy] [--no-jira]"]:::entry
+    A --> B["--bump flag (default: patch)"]:::action
     B --> C["Bump version in manifest"]:::action
     C --> D["Generate CHANGELOG"]:::action
     D --> E["git commit + tag"]:::action
     E --> F["git push + push tag"]:::action
-    F --> ST{"Stack"}:::decision
+    F --> ND{"--no-deploy?"}:::decision
+    ND -->|"yes"| NJ
+    ND -->|"no"| ST{"Stack"}:::decision
     ST -->|"databricks"| DB1["dbx deploy"]:::dbx
     DB1 --> DB2{"launch_on_release?"}:::decision
     DB2 -->|"yes"| DB3["dbx launch smoke run"]:::dbx
-    DB2 -->|"no"| N["Jira notify"]:::action
-    DB3 --> N
+    DB2 -->|"no"| NJ
+    DB3 --> NJ
     ST -->|"other"| G{"Deploy target"}:::decision
     G -->|"Kubernetes"| H1["kubectl rollout"]:::deploy
     G -->|"Azure"| H2["az webapp deploy"]:::deploy
     G -->|"AWS"| H3["ecs update-service"]:::deploy
     G -->|"GCP"| H4["gcloud run deploy"]:::deploy
-    H1 & H2 & H3 & H4 --> N
-    N --> JC["Post Jira comment + tag stakeholders"]:::jira
+    H1 & H2 & H3 & H4 --> NJ{"--no-jira?"}:::decision
+    NJ -->|"yes"| Z["Released"]:::done
+    NJ -->|"no"| JC["Post Jira comment + tag stakeholders"]:::jira
     JC --> JS["Active story → Done"]:::jira
     JS --> JE{"All stories done?"}:::decision
     JE -->|"yes"| JED["Epic → Done"]:::jira
-    JE -->|"no"| Z["Released — Epic stays active"]:::done
+    JE -->|"no"| Z
     JED --> Z
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
-    classDef prompt fill:#0f4c75,stroke:#1b6ca8,color:#e2e8f0
     classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
     classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
     classDef deploy fill:#1e3a5f,stroke:#3b82f6,color:#e2e8f0
@@ -283,13 +290,14 @@ proj new my-project
 
 | Command | Description |
 |---|---|
-| `proj plan` | LLM-assisted solutioning via Claude Code CLI — writes PLAN.md, creates Jira stories |
-| `proj new <name>` | Scaffold a new project — stack, cloud, secrets, Jira Epic |
-| `proj dev` | Pick Jira ticket, load secrets, start dev server |
-| `proj build` | Docker build + push to cloud registry (or Databricks wheel upload) |
-| `proj release` | Bump version, deploy, close Jira story, notify stakeholders |
+| `proj plan [name] [--cloud] [--resume]` | LLM-assisted solutioning via Claude Code CLI — writes PLAN.md, creates Jira stories |
+| `proj new <name> [--stack] [--cloud]` | Scaffold a new project — stack, cloud, secrets, Jira Epic |
+| `proj dev [--ticket KEY] [--skip-jira]` | Pick Jira ticket, load secrets, start dev server |
+| `proj build [--multi-arch] [--no-push]` | Docker build + push to cloud registry (or Databricks wheel upload) |
+| `proj release [--bump patch\|minor\|major] [--no-deploy] [--no-jira] [--dry-run]` | Bump version, deploy, close Jira story, notify stakeholders |
 | `proj status` | Show version, git state, and live Jira Epic + tickets |
-| `proj mcp` | Start MCP server for Claude Code integration |
+| `proj lazy` | Full-screen retro TUI dashboard — all commands one keypress away |
+| `proj mcp` | Start MCP server for Claude Code integration (stdio) |
 | `proj help` | List all commands, lifecycle order, and common flags |
 
 ## Stacks

@@ -182,7 +182,8 @@ flowchart TD
     NEW --> S["Scaffold + git init + proj.yaml"]:::action
     NEW --> CG["Generate CLAUDE.md + .claude/"]:::claude
     NEW --> J1["Create or link Jira Epic"]:::jira
-    DEV --> ENV["Load secrets + run dev server"]:::action
+    DEV --> J5["Jira: pick ticket → In Progress"]:::jira
+    J5 --> ENV["Load secrets + run dev server"]:::action
     BUILD --> PUSH["docker build + push registry"]:::action
     RELEASE --> VER["Bump version + CHANGELOG"]:::action
     VER --> DEPLOY["Deploy to cloud"]:::action
@@ -227,7 +228,7 @@ flowchart TD
 flowchart TD
     A["proj plan"]:::entry
     A --> M{"proj.yaml exists?"}:::decision
-    M -->|"no — new project"| NP1["Prompt: name + cloud target"]:::prompt
+    M -->|"no — new project"| NP1["name arg + --cloud flag\n(prompted if omitted)"]:::prompt
     M -->|"yes — existing project"| EP1["Read proj.yaml\nAuto-load PLAN.md if it exists"]:::action
     NP1 --> NR{"--resume flag?\nPLAN.md exists?"}:::decision
     NR -->|"yes"| RL["Load existing PLAN.md as context"]:::action
@@ -265,11 +266,15 @@ flowchart TD
 `,
     dev: `
 flowchart TD
-    A["proj dev"]:::entry
+    A["proj dev\n[--ticket KEY] [--skip-jira]"]:::entry
     A --> B["Read proj.yaml"]:::action
-    B --> J1["Fetch open Epic tickets"]:::jira
+    B --> SJ{"--skip-jira?"}:::decision
+    SJ -->|"yes"| ST
+    SJ -->|"no"| TK{"--ticket flag?"}:::decision
+    TK -->|"yes — e.g. PROJ-42"| J3["Transition specified ticket → In Progress"]:::jira
+    TK -->|"no"| J1["Fetch open Epic tickets"]:::jira
     J1 --> J2["Pick active ticket"]:::jira
-    J2 --> J3["Transition ticket to In Progress"]:::jira
+    J2 --> J3
     J3 --> ST{"Stack"}:::decision
     ST -->|"databricks"| DB["Sync to Databricks Repos"]:::dbx
     DB --> DBS["databricks repos update"]:::dbx
@@ -344,26 +349,28 @@ flowchart TD
 `,
     release: `
 flowchart TD
-    A["proj release"]:::entry
-    A --> B["Prompt: major / minor / patch"]:::prompt
+    A["proj release\n[--bump patch|minor|major] [--no-deploy] [--no-jira]"]:::entry
+    A --> B["--bump flag (default: patch)"]:::action
     B --> C["Bump version in manifest"]:::action
     C --> D["Generate CHANGELOG"]:::action
     D --> E["git commit + tag"]:::action
     E --> F["git push + push tag"]:::action
-    F --> G{"Deploy target"}:::decision
+    F --> ND{"--no-deploy?"}:::decision
+    ND -->|"yes"| NJ
+    ND -->|"no"| G{"Deploy target"}:::decision
     G -->|"Kubernetes"| H1["kubectl rollout"]:::deploy
     G -->|"Azure"| H2["az webapp deploy"]:::deploy
     G -->|"AWS"| H3["ecs update-service"]:::deploy
     G -->|"GCP"| H4["gcloud run deploy"]:::deploy
-    H1 & H2 & H3 & H4 --> WH["Post webhook"]:::action
-    WH --> JC["Post Jira comment + tag stakeholders"]:::jira
+    H1 & H2 & H3 & H4 --> NJ{"--no-jira?"}:::decision
+    NJ -->|"yes"| Z["Released"]:::done
+    NJ -->|"no"| JC["Post Jira comment + tag stakeholders"]:::jira
     JC --> JS["Active story → Done"]:::jira
     JS --> JE{"All stories done?"}:::decision
     JE -->|"yes"| JED["Epic → Done"]:::jira
-    JE -->|"no"| Z["Released — Epic stays active"]:::done
+    JE -->|"no"| Z
     JED --> Z
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
-    classDef prompt fill:#0f4c75,stroke:#1b6ca8,color:#e2e8f0
     classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
     classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7
     classDef deploy fill:#1e3a5f,stroke:#3b82f6,color:#e2e8f0
@@ -401,8 +408,9 @@ flowchart LR
     T --> P7["proj mcp — start MCP server"]:::stage
     T --> P8["proj help — this screen"]:::stage
     A --> F["Flags table"]:::action
-    F --> F1["--resume · --multi-arch · --no-push"]:::action
-    F --> F2["--bump minor|major · --dry-run"]:::action
+    F --> F1["--resume · --cloud · --ticket · --skip-jira"]:::action
+    F --> F2["--bump patch|minor|major · --dry-run · --no-deploy · --no-jira"]:::action
+    F --> F3["--multi-arch · --no-push"]:::action
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
     classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
     classDef stage fill:#1e40af,stroke:#3b82f6,color:#e2e8f0
