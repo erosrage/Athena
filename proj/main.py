@@ -1,6 +1,6 @@
 import typer
 from rich.console import Console
-from proj.commands import plan, new, dev, build, release, status, mcp, help as help_cmd
+from proj.commands import plan, new, dev, build, release, status, mcp, help as help_cmd, lazy
 
 app = typer.Typer(
     name="proj",
@@ -18,6 +18,7 @@ app.add_typer(release.app,      name="release", help="Version, deploy, and notif
 app.add_typer(status.app,       name="status",  help="Show project + Jira status.")
 app.add_typer(mcp.app,          name="mcp",     help="Start the MCP server for Claude Code.")
 app.add_typer(help_cmd.app,     name="help",    help="Show all commands and flags.")
+app.add_typer(lazy.app,         name="lazy",    help="TUI dashboard — run any command with a keypress.")
 
 
 @app.callback(invoke_without_command=True)
@@ -31,6 +32,7 @@ def main(ctx: typer.Context):
         console.print("  [cyan]proj release[/]  Version, deploy, and notify")
         console.print("  [cyan]proj status[/]   Show project + Jira status")
         console.print("  [cyan]proj mcp[/]      Start MCP server for Claude Code")
+        console.print("  [cyan]proj lazy[/]     TUI dashboard — everything in one place")
         console.print("\n  Run [bold]proj help[/] for full details and flags.\n")
 
 
