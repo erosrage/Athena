@@ -96,7 +96,8 @@ def _container_build(config: dict, name: str, stack: str, multi_arch: bool, push
 
     if not push or cloud == "local":
         console.print("\n[green]Build complete.[/] Image kept local.")
-        _jira_post_build(config, success=True, build_type="container")
+        _jira_post_build(config, success=True, build_type="container",
+                         details=f"Image: {tag}\nVersion tag: {tag_ver}\nRegistry: local")
         return
 
     registry = _registry_for(cloud, config)
@@ -109,7 +110,8 @@ def _container_build(config: dict, name: str, stack: str, multi_arch: bool, push
     _run(["docker", "push", remote_tag])
     _run(["docker", "push", remote_tag_ver])
 
-    _jira_post_build(config, success=True, build_type="container")
+    _jira_post_build(config, success=True, build_type="container",
+                     details=f"Image: {remote_tag}\nVersion tag: {remote_tag_ver}\nCloud: {cloud}")
 
     console.print(f"\n[green]Pushed:[/] [bold]{remote_tag}[/]")
     console.print(f"[green]Pushed:[/] [bold]{remote_tag_ver}[/]")
@@ -209,7 +211,8 @@ def _login(cloud: str, config: dict) -> None:
 # Jira post-build
 # ---------------------------------------------------------------------------
 
-def _jira_post_build(config: dict, success: bool, build_type: str) -> None:
+def _jira_post_build(config: dict, success: bool, build_type: str, details: str = "") -> None:
+    from datetime import date
     jira_cfg   = config.get("jira", {})
     base_url   = jira_cfg.get("base_url")
     token      = jira_cfg.get("token")
@@ -224,6 +227,15 @@ def _jira_post_build(config: dict, success: bool, build_type: str) -> None:
             ok = jira_mod.transition_ticket(client, active_key, "In Review")
             if ok:
                 console.print(f"\n  [green]Jira:[/] [cyan]{active_key}[/] → In Review")
+            detail_block = f"\n\n{{noformat}}\n{details}\n{{noformat}}" if details else ""
+            body = (
+                f"*Build successful* — ready for review\n\n"
+                f"- *Type:* {build_type}\n"
+                f"- *Date:* {date.today().isoformat()}"
+                f"{detail_block}"
+            )
+            jira_mod.post_comment(client, active_key, body)
+            console.print(f"  [dim]Jira: build-success comment posted on {active_key}[/]")
         else:
             if build_type == "container":
                 import subprocess as sp
@@ -232,13 +244,15 @@ def _jira_post_build(config: dict, success: bool, build_type: str) -> None:
                     capture_output=True, text=True,
                 ).stderr or "No log available."
             else:
-                log_snippet = f"Build failed for {build_type} stack."
+                log_snippet = details or f"Build failed for {build_type} stack."
             body = (
-                f"*Build failed* for [{active_key}]\n\n"
+                f"*Build failed*\n\n"
+                f"- *Type:* {build_type}\n"
+                f"- *Date:* {date.today().isoformat()}\n\n"
                 f"{{noformat}}\n{log_snippet}\n{{noformat}}"
             )
             jira_mod.post_comment(client, active_key, body)
-            console.print(f"\n  [yellow]Jira:[/] build failure posted to [cyan]{active_key}[/]")
+            console.print(f"\n  [yellow]Jira:[/] build-failure comment posted on [cyan]{active_key}[/]")
     except Exception as e:
         console.print(f"\n  [yellow]Jira update skipped: {e}[/]")
 

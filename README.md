@@ -56,7 +56,8 @@ flowchart TD
     J1 --> J3["Validate Epic exists"]:::jira
     J2 --> J3
     J3 --> J4["Add watchers + stakeholders"]:::jira
-    J4 --> D["Copy template files"]:::action
+    J4 --> JC["Post comment: project scaffolded (stack/cloud/secrets)"]:::jira
+    JC --> D["Copy template files"]:::action
     D --> E["Write proj.yaml"]:::action
     E --> F["git init + initial commit"]:::action
     F --> G["Create .env.example + .gitignore"]:::action
@@ -106,7 +107,8 @@ flowchart TD
     CR -->|"yes"| K["POST all stories to Jira Epic"]:::jira
     CR -->|"no — select"| SEL["Number picker\ne.g. 3,4 for only new stories"]:::prompt
     SEL --> K
-    K --> Z
+    K --> KC["Post comment: planning complete + story keys"]:::jira
+    KC --> Z
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
     classDef prompt fill:#0f4c75,stroke:#1b6ca8,color:#e2e8f0
     classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
@@ -131,7 +133,8 @@ flowchart TD
     TK -->|"no"| JT["Fetch open Epic tickets"]:::jira
     JT --> JP["Pick active ticket"]:::jira
     JP --> JI
-    JI --> ST{"Stack"}:::decision
+    JI --> JIC["Post comment: dev started, branch + date"]:::jira
+    JIC --> ST{"Stack"}:::decision
     ST -->|"databricks"| SEC2["Load secrets"]:::action
     SEC2 --> DB["databricks repos update"]:::dbx
     DB --> DBT{"run_tests_on_dev?"}:::decision
@@ -193,7 +196,8 @@ flowchart TD
     G -->|"GCP"| H3["push to GCR"]:::cloud
     G -->|"Local"| H4["keep local"]:::cloud
     H1 & H2 & H3 & H4 --> JOK["Transition active ticket → In Review"]:::jira
-    JOK --> Z["Done"]:::done
+    JOK --> JBC["Post comment: build success + image tag + registry"]:::jira
+    JBC --> Z["Done"]:::done
     classDef entry fill:#a78bfa,stroke:#7c3aed,color:#0f1117
     classDef action fill:#1e293b,stroke:#475569,color:#cbd5e1
     classDef decision fill:#78350f,stroke:#d97706,color:#fef3c7

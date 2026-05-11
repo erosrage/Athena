@@ -389,6 +389,16 @@ def _post_stories(jira_cfg: dict, stories: list[str]) -> None:
             console.print(f"  [green]Created:[/] [cyan]{key}[/] — {summary}")
             created.append(key)
         console.print(f"\n  [bold]{len(created)}[/] stories created under [cyan]{epic_key}[/]")
+
+        if created:
+            story_lines = "\n".join(f"- [{k}]" for k in created)
+            body = (
+                f"*Planning session complete — {len(created)} {'story' if len(created) == 1 else 'stories'} added*\n\n"
+                f"{story_lines}\n\n"
+                f"_PLAN.md updated. Review stories above before starting development._"
+            )
+            jira_mod.post_comment(client, epic_key, body)
+            console.print(f"  [dim]Jira: planning comment posted on {epic_key}[/]")
     except Exception as e:
         console.print(f"  [red]Jira story creation failed: {e}[/]")
 

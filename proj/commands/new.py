@@ -178,6 +178,24 @@ def new(
     if result.returncode != 0 and b"nothing to commit" not in result.stdout + result.stderr:
         console.print(f"  [yellow]git commit warning: {result.stderr.decode().strip()}[/]")
 
+    # Jira: comment on Epic that the project is scaffolded
+    if epic_key and client:
+        try:
+            verb = "initialised in-place" if in_place else "scaffolded"
+            body = (
+                f"*Project {verb} via proj CLI*\n\n"
+                f"- *Name:* {name}\n"
+                f"- *Stack:* {stack}\n"
+                f"- *Cloud:* {cloud}\n"
+                f"- *Secrets:* {secrets_backend}\n"
+                f"- *Version:* 0.1.0\n"
+                f"- *Directory:* {project_dir}"
+            )
+            jira_mod.post_comment(client, epic_key, body)
+            console.print(f"  [dim]Jira: comment posted on {epic_key}[/]")
+        except Exception as e:
+            console.print(f"  [yellow]Jira comment skipped: {e}[/]")
+
     action = "initialized in" if in_place else "created at"
     console.print(f"\n[bold green]Done![/] Project {action} [bold]{project_dir}[/]")
     console.print(f"  Stack:   [cyan]{stack}[/]")

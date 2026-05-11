@@ -142,6 +142,7 @@ def _jira_start(config: dict, ticket: str | None = None, skip: bool = False) -> 
             ok = jira_mod.transition_ticket(client, ticket, "In Progress")
             if ok:
                 console.print(f"  [green]{ticket}[/] → In Progress")
+            _comment_dev_start(client, ticket)
             return ticket
 
         console.print(f"[bold]Jira:[/] open tickets in [cyan]{epic_key}[/]")
@@ -160,11 +161,29 @@ def _jira_start(config: dict, ticket: str | None = None, skip: bool = False) -> 
         ok = jira_mod.transition_ticket(client, key, "In Progress")
         if ok:
             console.print(f"  [green]{key}[/] → In Progress")
+        _comment_dev_start(client, key)
         return key
 
     except Exception as e:
         console.print(f"  [yellow]Jira unavailable: {e}[/]")
         return None
+
+
+def _comment_dev_start(client, key: str) -> None:
+    """Post a 'development started' comment on the active ticket."""
+    from datetime import date
+    try:
+        branch = _git_branch()
+        body = (
+            f"*Development started*\n\n"
+            f"- *Branch:* {branch}\n"
+            f"- *Date:* {date.today().isoformat()}\n"
+            f"- *Tool:* proj dev"
+        )
+        jira_mod.post_comment(client, key, body)
+        console.print(f"  [dim]Jira: dev-start comment posted on {key}[/]")
+    except Exception as e:
+        console.print(f"  [yellow]Jira comment skipped: {e}[/]")
 
 
 def _databricks_dev(config: dict) -> None:
