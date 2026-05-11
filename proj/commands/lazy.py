@@ -311,7 +311,7 @@ class _LazyDashboard(App):
 
     async def _shell(self, *args: str) -> None:
         """Suspend TUI, hand off to interactive subprocess, then restore."""
-        async with self.suspend():
+        with self.suspend():
             subprocess.run([sys.executable, "-m", "proj", *args])
 
     # --- Actions ----------------------------------------------------------
