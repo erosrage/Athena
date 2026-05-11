@@ -190,18 +190,20 @@ def _deploy_databricks(name: str, version: str, config: dict) -> None:
 
 
 def _notify_jira(jira_cfg: dict, epic_key: str, name: str, version: str, log: str) -> None:
-    console.print(f"\nPosting Jira comment on [bold]{epic_key}[/]...")
+    console.print(f"\nPosting Jira release comment...")
     try:
         client = jira_mod.connect(jira_cfg["base_url"], jira_cfg["token"])
         stakeholders = jira_cfg.get("stakeholders", [])
         mentions = " ".join(f"[~{u}]" for u in stakeholders)
+        active_key = jira_mod.load_active_ticket()
         body = (
             f"*Released: {name} v{version}*\n\n"
             f"{mentions}\n\n"
             f"{{noformat}}\n{log}\n{{noformat}}"
         )
-        jira_mod.post_comment(client, epic_key, body)
-        console.print(f"  Comment posted on [cyan]{epic_key}[/]")
+        jira_mod.post_status_log(client, body, epic_key, active_key)
+        targets = ", ".join(filter(None, [epic_key, active_key]))
+        console.print(f"  Comment posted on [cyan]{targets}[/]")
 
         active_key = jira_mod.load_active_ticket()
         if active_key:

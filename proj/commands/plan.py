@@ -397,8 +397,10 @@ def _post_stories(jira_cfg: dict, stories: list[str]) -> None:
                 f"{story_lines}\n\n"
                 f"_PLAN.md updated. Review stories above before starting development._"
             )
-            jira_mod.post_comment(client, epic_key, body)
-            console.print(f"  [dim]Jira: planning comment posted on {epic_key}[/]")
+            active_key = jira_mod.load_active_ticket()
+            jira_mod.post_status_log(client, body, epic_key, active_key)
+            targets = ", ".join(filter(None, [epic_key, active_key]))
+            console.print(f"  [dim]Jira: planning comment posted on {targets}[/]")
     except Exception as e:
         console.print(f"  [red]Jira story creation failed: {e}[/]")
 

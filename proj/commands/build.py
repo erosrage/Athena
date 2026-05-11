@@ -216,26 +216,32 @@ def _jira_post_build(config: dict, success: bool, build_type: str, details: str 
     jira_cfg   = config.get("jira", {})
     base_url   = jira_cfg.get("base_url")
     token      = jira_cfg.get("token")
+    epic_key   = jira_cfg.get("epic_key")
     active_key = jira_mod.load_active_ticket()
 
-    if not all([base_url, token, active_key]):
+    if not all([base_url, token]):
+        return
+    if not (active_key or epic_key):
         return
 
     try:
         client = jira_mod.connect(base_url, token)
         if success:
-            ok = jira_mod.transition_ticket(client, active_key, "In Review")
-            if ok:
-                console.print(f"\n  [green]Jira:[/] [cyan]{active_key}[/] → In Review")
+            if active_key:
+                ok = jira_mod.transition_ticket(client, active_key, "In Review")
+                if ok:
+                    console.print(f"\n  [green]Jira:[/] [cyan]{active_key}[/] → In Review")
             detail_block = f"\n\n{{noformat}}\n{details}\n{{noformat}}" if details else ""
             body = (
                 f"*Build successful* — ready for review\n\n"
                 f"- *Type:* {build_type}\n"
+                f"- *Ticket:* {active_key or '—'}\n"
                 f"- *Date:* {date.today().isoformat()}"
                 f"{detail_block}"
             )
-            jira_mod.post_comment(client, active_key, body)
-            console.print(f"  [dim]Jira: build-success comment posted on {active_key}[/]")
+            jira_mod.post_status_log(client, body, active_key, epic_key)
+            targets = ", ".join(filter(None, [active_key, epic_key]))
+            console.print(f"  [dim]Jira: build-success comment posted on {targets}[/]")
         else:
             if build_type == "container":
                 import subprocess as sp
@@ -248,11 +254,13 @@ def _jira_post_build(config: dict, success: bool, build_type: str, details: str 
             body = (
                 f"*Build failed*\n\n"
                 f"- *Type:* {build_type}\n"
+                f"- *Ticket:* {active_key or '—'}\n"
                 f"- *Date:* {date.today().isoformat()}\n\n"
                 f"{{noformat}}\n{log_snippet}\n{{noformat}}"
             )
-            jira_mod.post_comment(client, active_key, body)
-            console.print(f"\n  [yellow]Jira:[/] build-failure comment posted on [cyan]{active_key}[/]")
+            jira_mod.post_status_log(client, body, active_key, epic_key)
+            targets = ", ".join(filter(None, [active_key, epic_key]))
+            console.print(f"\n  [yellow]Jira:[/] build-failure comment posted on [cyan]{targets}[/]")
     except Exception as e:
         console.print(f"\n  [yellow]Jira update skipped: {e}[/]")
 

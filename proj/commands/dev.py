@@ -142,7 +142,7 @@ def _jira_start(config: dict, ticket: str | None = None, skip: bool = False) -> 
             ok = jira_mod.transition_ticket(client, ticket, "In Progress")
             if ok:
                 console.print(f"  [green]{ticket}[/] → In Progress")
-            _comment_dev_start(client, ticket)
+            _comment_dev_start(client, ticket, epic_key)
             return ticket
 
         console.print(f"[bold]Jira:[/] open tickets in [cyan]{epic_key}[/]")
@@ -161,7 +161,7 @@ def _jira_start(config: dict, ticket: str | None = None, skip: bool = False) -> 
         ok = jira_mod.transition_ticket(client, key, "In Progress")
         if ok:
             console.print(f"  [green]{key}[/] → In Progress")
-        _comment_dev_start(client, key)
+        _comment_dev_start(client, key, epic_key)
         return key
 
     except Exception as e:
@@ -169,21 +169,20 @@ def _jira_start(config: dict, ticket: str | None = None, skip: bool = False) -> 
         return None
 
 
-def _comment_dev_start(client, key: str) -> None:
-    """Post a 'development started' comment on the active ticket."""
+def _comment_dev_start(client, key: str, epic_key: str | None = None) -> None:
+    """Post a 'development started' comment on the active ticket and Epic."""
     from datetime import date
-    try:
-        branch = _git_branch()
-        body = (
-            f"*Development started*\n\n"
-            f"- *Branch:* {branch}\n"
-            f"- *Date:* {date.today().isoformat()}\n"
-            f"- *Tool:* proj dev"
-        )
-        jira_mod.post_comment(client, key, body)
-        console.print(f"  [dim]Jira: dev-start comment posted on {key}[/]")
-    except Exception as e:
-        console.print(f"  [yellow]Jira comment skipped: {e}[/]")
+    branch = _git_branch()
+    body = (
+        f"*Development started*\n\n"
+        f"- *Ticket:* {key}\n"
+        f"- *Branch:* {branch}\n"
+        f"- *Date:* {date.today().isoformat()}\n"
+        f"- *Tool:* proj dev"
+    )
+    jira_mod.post_status_log(client, body, key, epic_key)
+    targets = ", ".join(filter(None, [key, epic_key]))
+    console.print(f"  [dim]Jira: dev-start comment posted on {targets}[/]")
 
 
 def _databricks_dev(config: dict) -> None:

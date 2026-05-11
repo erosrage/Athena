@@ -167,3 +167,15 @@ def add_watchers(jira: Jira, issue_key: str, usernames: list[str]) -> None:
 
 def post_comment(jira: Jira, issue_key: str, body: str) -> None:
     jira.issue_add_comment(issue_key, body)
+
+
+def post_status_log(jira: Jira, body: str, *keys: str | None) -> None:
+    """Post the same status comment to every non-None key (Epic + ticket).
+    Failures on individual keys are logged but do not abort the others."""
+    for key in keys:
+        if not key:
+            continue
+        try:
+            jira.issue_add_comment(key, body)
+        except Exception as e:
+            console.print(f"  [yellow]Jira comment skipped on {key}: {e}[/]")
