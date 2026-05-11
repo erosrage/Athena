@@ -45,6 +45,7 @@ If the developer asks to start building, implement a story, write code, or begin
 
 @app.callback(invoke_without_command=True)
 def plan(
+    name:   str  = typer.Argument(None, help="Project name (skips the name prompt)"),
     resume: bool = typer.Option(False, "--resume", help="Continue from an existing PLAN.md"),
 ):
     """LLM-assisted solutioning — opens a Claude Code session to brainstorm and architect."""
@@ -53,18 +54,21 @@ def plan(
     if config is not None:
         _plan_existing(config, resume)
     else:
-        _plan_new(resume)
+        _plan_new(resume, name)
 
 
 # ---------------------------------------------------------------------------
 # Pre-scaffold mode — no proj.yaml yet
 # ---------------------------------------------------------------------------
 
-def _plan_new(resume: bool) -> None:
+def _plan_new(resume: bool, name: str | None = None) -> None:
     console.print("\n[bold #a78bfa]proj plan[/] — new project\n")
     console.print("[dim]No proj.yaml found — let's figure out what you're building first.[/]\n")
 
-    name = Prompt.ask("  Project name").strip()
+    if name:
+        console.print(f"  Project name: [bold]{name}[/]")
+    else:
+        name = Prompt.ask("  Project name").strip()
     if not name:
         raise typer.Exit(0)
 
