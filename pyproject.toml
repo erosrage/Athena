@@ -19,6 +19,7 @@ dependencies = [
     "requests>=2.31",
     "mcp>=1.0",
     "textual>=0.47",
+    "anthropic>=0.30",
 ]
 
 [project.scripts]

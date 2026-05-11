@@ -9,14 +9,20 @@ PROJ_FILE = "proj.yaml"
 
 # Ordered dict — category → stacks. STACKS is derived from this.
 STACK_CATEGORIES: dict[str, list[str]] = {
-    "Python":           ["flask", "fastapi", "django", "python-cli", "streamlit"],
-    "Node/TypeScript":  ["express", "nestjs", "ts-node"],
-    "Frontend":         ["react", "nextjs", "vue", "svelte", "angular"],
-    "Systems":          ["go", "rust", "dotnet"],
-    "Desktop/Mobile":   ["electron", "tauri", "react-native", "flutter"],
-    "Data/ML":          ["databricks", "jupyter", "mlflow", "dbt", "bi-report"],
-    "Other Backend":    ["spring-boot", "rails", "laravel"],
-    "IaC":              ["terraform", "pulumi"],
+    "Python":           ["flask", "fastapi", "django", "python-cli", "streamlit",
+                         "gradio", "litestar", "fasthtml", "celery"],
+    "Node/TypeScript":  ["express", "nestjs", "ts-node", "fastify", "bun", "hono"],
+    "Frontend":         ["react", "nextjs", "vue", "svelte", "angular",
+                         "astro", "remix", "solidjs"],
+    "Systems":          ["go", "rust", "dotnet", "zig", "kotlin", "java"],
+    "Desktop/Mobile":   ["electron", "tauri", "react-native", "flutter",
+                         "wails", "expo"],
+    "Data/ML":          ["databricks", "jupyter", "mlflow", "dbt", "bi-report",
+                         "airflow", "huggingface", "pytorch", "spark"],
+    "AI / LLM":         ["langchain", "llamaindex", "crewai", "anthropic-sdk"],
+    "Other Backend":    ["spring-boot", "rails", "laravel", "fiber", "phoenix",
+                         "graphql", "grpc"],
+    "IaC":              ["terraform", "pulumi", "ansible", "helm", "cdk", "bicep"],
     "Swift / Apple":    ["swift", "vapor", "swiftui", "ios"],
 }
 
@@ -188,6 +194,139 @@ STACK_META: dict[str, dict] = {
     "ios": {
         "build": "swift_native", "manifest": _NONE, "entry": "App/AppDelegate.swift",
         "notes": "- Entry: `App/AppDelegate.swift`\n- Build: `xcodebuild archive`\n- Deploy: App Store Connect / TestFlight",
+    },
+    # Python additions
+    "gradio": {
+        "build": "container", "manifest": _PYPROJECT, "entry": "app.py",
+        "notes": "- Entry point: `app.py`\n- Run: `python app.py`\n- Demo UI auto-opens in browser at `http://localhost:7860`",
+    },
+    "litestar": {
+        "build": "container", "manifest": _PYPROJECT, "entry": "app.py",
+        "notes": "- Entry point: `app.py`\n- Run: `litestar run --reload`\n- Docs: `/schema/swagger`",
+    },
+    "fasthtml": {
+        "build": "container", "manifest": _PYPROJECT, "entry": "main.py",
+        "notes": "- Entry point: `main.py`\n- Run: `python main.py`\n- Uses HTMX under the hood",
+    },
+    "celery": {
+        "build": "container", "manifest": _PYPROJECT, "entry": "tasks.py",
+        "notes": "- Entry point: `tasks.py`\n- Run: `celery -A tasks worker --loglevel=info`\n- Broker: configure CELERY_BROKER_URL in .env",
+    },
+    # Node/TypeScript additions
+    "fastify": {
+        "build": "container", "manifest": _PKG_JSON, "entry": "src/index.js",
+        "notes": "- Entry point: `src/index.js`\n- Run: `npx nodemon src/index.js`\n- Docs: `fastify-swagger` at `/docs`",
+    },
+    "bun": {
+        "build": "container", "manifest": _PKG_JSON, "entry": "src/index.ts",
+        "notes": "- Entry point: `src/index.ts`\n- Run: `bun run --watch src/index.ts`\n- Install: `bun install`",
+    },
+    "hono": {
+        "build": "container", "manifest": _PKG_JSON, "entry": "src/index.ts",
+        "notes": "- Entry point: `src/index.ts`\n- Run: `bun run dev` or `wrangler dev`\n- Targets: Bun, Deno, Cloudflare Workers, Node",
+    },
+    # Frontend additions
+    "astro": {
+        "build": "native", "manifest": _PKG_JSON, "entry": "src/pages/index.astro",
+        "notes": "- Entry point: `src/pages/index.astro`\n- Dev: `npm run dev`\n- Build: `npm run build` → `dist/`",
+    },
+    "remix": {
+        "build": "container", "manifest": _PKG_JSON, "entry": "app/root.tsx",
+        "notes": "- Entry point: `app/root.tsx`\n- Dev: `npm run dev`\n- Build: `npm run build`",
+    },
+    "solidjs": {
+        "build": "native", "manifest": _PKG_JSON, "entry": "src/App.tsx",
+        "notes": "- Entry point: `src/App.tsx`\n- Dev: `npm run dev`\n- Build: `npm run build` → `dist/`",
+    },
+    # Systems additions
+    "zig": {
+        "build": "native", "manifest": _NONE, "entry": "src/main.zig",
+        "notes": "- Entry point: `src/main.zig`\n- Run: `zig run src/main.zig`\n- Build: `zig build`\n- Release: `zig build -Doptimize=ReleaseFast`",
+    },
+    "kotlin": {
+        "build": "container", "manifest": _NONE, "entry": "src/main/kotlin",
+        "notes": "- Entry point: `src/main/kotlin`\n- Run: `./gradlew run` or `./gradlew bootRun`\n- Build: `./gradlew build`",
+    },
+    "java": {
+        "build": "container", "manifest": _POM, "entry": "src/main/java",
+        "notes": "- Entry point: `src/main/java`\n- Run: `./mvnw spring-boot:run` or `./gradlew run`\n- Build: `./mvnw package`",
+    },
+    # Desktop / Mobile additions
+    "wails": {
+        "build": "native", "manifest": _NONE, "entry": "main.go",
+        "notes": "- Entry point: `main.go` (Go backend) + `frontend/`\n- Dev: `wails dev`\n- Build: `wails build`",
+    },
+    "expo": {
+        "build": "native", "manifest": _PKG_JSON, "entry": "App.tsx",
+        "notes": "- Entry point: `App.tsx`\n- Run: `npx expo start`\n- Build: `eas build` (Expo Application Services)",
+    },
+    # Data/ML additions
+    "airflow": {
+        "build": "container", "manifest": _PYPROJECT, "entry": "dags/",
+        "notes": "- DAGs in `dags/`\n- Run: `airflow webserver` + `airflow scheduler`\n- UI: `http://localhost:8080`",
+    },
+    "huggingface": {
+        "build": "container", "manifest": _PYPROJECT, "entry": "train.py",
+        "notes": "- Entry point: `train.py`\n- Run: `python train.py`\n- Push model: `huggingface-cli upload`\n- Inference: `pipeline()` from transformers",
+    },
+    "pytorch": {
+        "build": "container", "manifest": _PYPROJECT, "entry": "train.py",
+        "notes": "- Entry point: `train.py`\n- Run: `python train.py`\n- GPU: set `device = torch.device('cuda')`\n- Export: `torch.save` / ONNX",
+    },
+    "spark": {
+        "build": "data", "manifest": _PYPROJECT, "entry": "jobs/",
+        "notes": "- Jobs in `jobs/`\n- Run: `spark-submit jobs/main.py`\n- Test: `pytest tests/`\n- Deploy: Databricks / EMR / Dataproc",
+    },
+    # AI / LLM
+    "langchain": {
+        "build": "container", "manifest": _PYPROJECT, "entry": "main.py",
+        "notes": "- Entry point: `main.py`\n- Run: `python main.py`\n- Chains in `chains/`, agents in `agents/`\n- Set OPENAI_API_KEY / ANTHROPIC_API_KEY in .env",
+    },
+    "llamaindex": {
+        "build": "container", "manifest": _PYPROJECT, "entry": "main.py",
+        "notes": "- Entry point: `main.py`\n- Run: `python main.py`\n- Indexes in `indexes/`, data in `data/`\n- Set LLM API key in .env",
+    },
+    "crewai": {
+        "build": "container", "manifest": _PYPROJECT, "entry": "main.py",
+        "notes": "- Entry point: `main.py`\n- Run: `python main.py`\n- Agents in `agents/`, tasks in `tasks/`\n- Set OPENAI_API_KEY in .env",
+    },
+    "anthropic-sdk": {
+        "build": "container", "manifest": _PYPROJECT, "entry": "main.py",
+        "notes": "- Entry point: `main.py`\n- Run: `python main.py`\n- Set ANTHROPIC_API_KEY in .env\n- Use prompt caching for long system prompts",
+    },
+    # Other Backend additions
+    "fiber": {
+        "build": "container", "manifest": _NONE, "entry": "main.go",
+        "notes": "- Entry point: `main.go`\n- Run: `air` (live reload) or `go run main.go`\n- Fast HTTP using fasthttp under the hood",
+    },
+    "phoenix": {
+        "build": "container", "manifest": _NONE, "entry": "lib/",
+        "notes": "- Entry point: `lib/`\n- Run: `mix phx.server`\n- DB: `mix ecto.migrate`\n- LiveView for real-time UI",
+    },
+    "graphql": {
+        "build": "container", "manifest": _PKG_JSON, "entry": "src/schema.ts",
+        "notes": "- Entry point: `src/schema.ts`\n- Run: `npm run dev`\n- Playground: `http://localhost:4000/graphql`",
+    },
+    "grpc": {
+        "build": "container", "manifest": _PYPROJECT, "entry": "proto/",
+        "notes": "- Protos in `proto/`\n- Server: `python server.py`\n- Generate: `python -m grpc_tools.protoc ...`\n- Test: `grpcurl`",
+    },
+    # IaC additions
+    "ansible": {
+        "build": "iac", "manifest": _NONE, "entry": "playbooks/site.yml",
+        "notes": "- Entry: `playbooks/site.yml`\n- Run: `ansible-playbook playbooks/site.yml -i inventory/`\n- Lint: `ansible-lint`",
+    },
+    "helm": {
+        "build": "iac", "manifest": _NONE, "entry": "Chart.yaml",
+        "notes": "- Entry: `Chart.yaml`\n- Install: `helm install my-release .`\n- Upgrade: `helm upgrade my-release .`\n- Lint: `helm lint`",
+    },
+    "cdk": {
+        "build": "iac", "manifest": _PKG_JSON, "entry": "lib/",
+        "notes": "- Entry: `lib/`\n- Diff: `cdk diff`\n- Deploy: `cdk deploy`\n- Bootstrap (once): `cdk bootstrap`",
+    },
+    "bicep": {
+        "build": "iac", "manifest": _NONE, "entry": "main.bicep",
+        "notes": "- Entry: `main.bicep`\n- Deploy: `az deployment group create --template-file main.bicep`\n- Validate: `az bicep build`",
     },
 }
 

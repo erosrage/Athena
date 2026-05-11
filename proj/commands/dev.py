@@ -56,6 +56,46 @@ STACK_COMMANDS: dict[str, list[str] | None] = {
     "vapor":        ["swift", "run"],
     "swiftui":      None,   # Xcode-only
     "ios":          None,   # Xcode-only
+    # Python additions
+    "gradio":       [sys.executable, "app.py"],
+    "litestar":     ["litestar", "run", "--reload"],
+    "fasthtml":     [sys.executable, "main.py"],
+    "celery":       ["celery", "-A", "tasks", "worker", "--loglevel=info"],
+    # Node/TypeScript additions
+    "fastify":      ["npx", "nodemon", "src/index.js"],
+    "bun":          ["bun", "run", "--watch", "src/index.ts"],
+    "hono":         ["bun", "run", "dev"],
+    # Frontend additions
+    "astro":        ["npm", "run", "dev"],
+    "remix":        ["npm", "run", "dev"],
+    "solidjs":      ["npm", "run", "dev"],
+    # Systems additions
+    "zig":          ["zig", "build", "run"],
+    "kotlin":       ["./gradlew", "run"],
+    "java":         ["./mvnw", "spring-boot:run"],
+    # Desktop/Mobile additions
+    "wails":        ["wails", "dev"],
+    "expo":         ["npx", "expo", "start"],
+    # Data/ML additions
+    "airflow":      ["airflow", "webserver", "--port", "8080"],
+    "huggingface":  [sys.executable, "train.py"],
+    "pytorch":      [sys.executable, "train.py"],
+    "spark":        None,   # submit via spark-submit
+    # AI / LLM
+    "langchain":    [sys.executable, "main.py"],
+    "llamaindex":   [sys.executable, "main.py"],
+    "crewai":       [sys.executable, "main.py"],
+    "anthropic-sdk":[sys.executable, "main.py"],
+    # Other Backend additions
+    "fiber":        ["air"],
+    "phoenix":      ["mix", "phx.server"],
+    "graphql":      ["npm", "run", "dev"],
+    "grpc":         [sys.executable, "server.py"],
+    # IaC additions
+    "ansible":      None,   # run playbooks explicitly
+    "helm":         None,   # helm install / upgrade explicitly
+    "cdk":          ["cdk", "diff"],
+    "bicep":        None,   # az deployment commands explicitly
 }
 
 

@@ -294,7 +294,7 @@ class _LazyDashboard(App):
 
     # --- Button dispatcher ------------------------------------------------
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
         dispatch = {
             "btn-plan":    self.action_run_plan,
             "btn-new":     self.action_run_new,
@@ -305,27 +305,27 @@ class _LazyDashboard(App):
         }
         handler = dispatch.get(event.button.id)
         if handler:
-            handler()
+            await handler()
 
     # --- Shell helper -----------------------------------------------------
 
-    def _shell(self, *args: str) -> None:
+    async def _shell(self, *args: str) -> None:
         """Suspend TUI, hand off to interactive subprocess, then restore."""
-        with self.suspend():
+        async with self.suspend():
             subprocess.run([sys.executable, "-m", "proj", *args])
 
     # --- Actions ----------------------------------------------------------
 
-    def action_run_plan(self)    -> None: self._shell("plan")
-    def action_run_dev(self)     -> None: self._shell("dev")
-    def action_run_build(self)   -> None: self._shell("build")
-    def action_run_release(self) -> None: self._shell("release")
-    def action_run_status(self)  -> None: self._shell("status")
+    async def action_run_plan(self)    -> None: await self._shell("plan")
+    async def action_run_dev(self)     -> None: await self._shell("dev")
+    async def action_run_build(self)   -> None: await self._shell("build")
+    async def action_run_release(self) -> None: await self._shell("release")
+    async def action_run_status(self)  -> None: await self._shell("status")
 
-    def action_run_new(self) -> None:
-        def _on_name(name: str | None) -> None:
+    async def action_run_new(self) -> None:
+        async def _on_name(name: str | None) -> None:
             if name:
-                self._shell("new", name)
+                await self._shell("new", name)
         self.push_screen(_NameModal(), _on_name)
 
 
