@@ -15,10 +15,8 @@ console = Console()
 
 
 @app.callback(invoke_without_command=True)
-def mcp(
-    port: int = typer.Option(7777, "--port", "-p", help="Port to listen on"),
-):
-    """Start the proj MCP server for Claude Code integration."""
+def mcp():
+    """Start the proj MCP server for Claude Code integration (runs over stdio)."""
     try:
         import mcp.server.stdio
         from mcp.server import Server
@@ -187,7 +185,7 @@ def mcp(
 
         return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
-    console.print(f"[bold #a78bfa]proj mcp[/] — starting on stdio (port hint: {port})")
+    console.print("[bold #a78bfa]proj mcp[/] — starting on stdio")
     console.print("Add to Claude Code settings:")
     console.print(f'  [dim]{{"mcpServers": {{"proj": {{"command": "proj", "args": ["mcp"]}}}}}}[/]\n')
 

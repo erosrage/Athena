@@ -21,10 +21,16 @@ BUMP_TYPES = ["patch", "minor", "major"]
 
 @app.callback(invoke_without_command=True)
 def release(
-    bump: str = typer.Option("patch", "--bump", "-b", help="Version bump: patch | minor | major"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Preview without making changes"),
+    bump:      str  = typer.Option("patch", "--bump", "-b", help="Version bump: patch | minor | major"),
+    dry_run:   bool = typer.Option(False, "--dry-run",    help="Preview without making changes"),
+    no_deploy: bool = typer.Option(False, "--no-deploy",  help="Skip the deploy step"),
+    no_jira:   bool = typer.Option(False, "--no-jira",    help="Skip Jira comment and ticket transition"),
 ):
     """Bump version, update CHANGELOG, tag, deploy, and notify via Jira."""
+
+    if bump not in BUMP_TYPES:
+        console.print(f"[red]Invalid --bump '{bump}' — must be one of: {', '.join(BUMP_TYPES)}[/]")
+        raise typer.Exit(1)
 
     config = _load_or_exit()
     name   = config["name"]
@@ -37,7 +43,11 @@ def release(
 
     old_version = config.get("version", "0.1.0")
     new_version = _bump_version(old_version, bump)
-    console.print(f"  Version: [dim]{old_version}[/] → [bold green]{new_version}[/]")
+    console.print(f"  Version:   [dim]{old_version}[/] → [bold green]{new_version}[/]")
+    if no_deploy:
+        console.print(f"  Deploy:    [dim]skipped (--no-deploy)[/]")
+    if no_jira:
+        console.print(f"  Jira:      [dim]skipped (--no-jira)[/]")
 
     if dry_run:
         console.print("\n[yellow]Dry run — no changes made.[/]")
@@ -64,15 +74,21 @@ def release(
     console.print(f"  Tagged: [cyan]v{new_version}[/]")
 
     # --- Deploy ---
-    _deploy(build_type, cloud, name, new_version, config)
+    if not no_deploy:
+        _deploy(build_type, cloud, name, new_version, config)
+    else:
+        console.print("\n[dim]Deploy skipped.[/]")
 
     # --- Jira comment + transition ---
-    jira_cfg = config.get("jira", {})
-    epic_key  = jira_cfg.get("epic_key")
-    if epic_key and jira_cfg.get("base_url") and jira_cfg.get("token"):
-        _notify_jira(jira_cfg, epic_key, name, new_version, log)
+    if no_jira:
+        console.print("[dim]Jira skipped.[/]")
     else:
-        console.print("  [dim]Jira not configured — skipping comment.[/]")
+        jira_cfg = config.get("jira", {})
+        epic_key  = jira_cfg.get("epic_key")
+        if epic_key and jira_cfg.get("base_url") and jira_cfg.get("token"):
+            _notify_jira(jira_cfg, epic_key, name, new_version, log)
+        else:
+            console.print("  [dim]Jira not configured — skipping comment.[/]")
 
     # --- Webhook ---
     webhook_url = config.get("webhook_url")

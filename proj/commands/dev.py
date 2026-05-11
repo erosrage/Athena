@@ -60,7 +60,10 @@ STACK_COMMANDS: dict[str, list[str] | None] = {
 
 
 @app.callback(invoke_without_command=True)
-def dev(ctx: typer.Context):
+def dev(
+    ticket:    str  = typer.Option(None, "--ticket", "-t", help="Jira ticket key to work on (skips the picker, e.g. PROJ-42)"),
+    skip_jira: bool = typer.Option(False, "--skip-jira", help="Skip the Jira ticket picker entirely"),
+):
     """Load secrets, pick a Jira ticket, and start the dev server."""
 
     config  = _load_or_exit()
@@ -71,7 +74,7 @@ def dev(ctx: typer.Context):
     console.print(f"\n[bold #a78bfa]proj dev[/] — [bold]{name}[/] ([cyan]{stack}[/])\n")
 
     # --- Jira: show open tickets + pick active ---
-    active_ticket = _jira_start(config)
+    active_ticket = _jira_start(config, ticket=ticket, skip=skip_jira)
 
     # --- Load secrets ---
     console.print(f"\nLoading secrets via [bold]{backend}[/]...")
@@ -115,8 +118,12 @@ def dev(ctx: typer.Context):
         console.print("\n[dim]Dev server stopped.[/]")
 
 
-def _jira_start(config: dict) -> str | None:
+def _jira_start(config: dict, ticket: str | None = None, skip: bool = False) -> str | None:
     """Show open tickets, let user pick one, transition it to In Progress."""
+    if skip:
+        console.print("[dim]Jira skipped (--skip-jira).[/]")
+        return None
+
     jira_cfg = config.get("jira", {})
     epic_key = jira_cfg.get("epic_key")
     base_url = jira_cfg.get("base_url")
@@ -125,20 +132,30 @@ def _jira_start(config: dict) -> str | None:
     if not all([epic_key, base_url, token]):
         return None
 
-    console.print(f"[bold]Jira:[/] open tickets in [cyan]{epic_key}[/]")
     try:
-        client  = jira_mod.connect(base_url, token)
+        client = jira_mod.connect(base_url, token)
+
+        if ticket:
+            # Pre-selected via --ticket flag — skip the picker
+            console.print(f"[bold]Jira:[/] using [cyan]{ticket}[/] [dim](from --ticket flag)[/]")
+            jira_mod.save_active_ticket(ticket)
+            ok = jira_mod.transition_ticket(client, ticket, "In Progress")
+            if ok:
+                console.print(f"  [green]{ticket}[/] → In Progress")
+            return ticket
+
+        console.print(f"[bold]Jira:[/] open tickets in [cyan]{epic_key}[/]")
         tickets = jira_mod.get_open_tickets(client, epic_key)
 
         if not tickets:
             console.print("  [dim]No open tickets.[/]")
             return None
 
-        ticket = jira_mod.pick_active_ticket(tickets)
-        if not ticket:
+        chosen = jira_mod.pick_active_ticket(tickets)
+        if not chosen:
             return None
 
-        key = ticket["key"]
+        key = chosen["key"]
         jira_mod.save_active_ticket(key)
         ok = jira_mod.transition_ticket(client, key, "In Progress")
         if ok:

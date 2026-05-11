@@ -47,21 +47,26 @@ If the developer asks to start building, implement a story, write code, or begin
 def plan(
     name:   str  = typer.Argument(None, help="Project name (skips the name prompt)"),
     resume: bool = typer.Option(False, "--resume", help="Continue from an existing PLAN.md"),
+    cloud:  str  = typer.Option(None, "--cloud", "-c", help="Cloud target: azure|aws|gcp|local (skips cloud picker)"),
 ):
     """LLM-assisted solutioning — opens a Claude Code session to brainstorm and architect."""
+
+    if cloud and cloud not in CLOUDS:
+        console.print(f"[red]Invalid cloud '{cloud}' — must be one of: {', '.join(CLOUDS)}[/]")
+        raise typer.Exit(1)
 
     config = _try_load_config()
     if config is not None:
         _plan_existing(config, resume)
     else:
-        _plan_new(resume, name)
+        _plan_new(resume, name, cloud)
 
 
 # ---------------------------------------------------------------------------
 # Pre-scaffold mode — no proj.yaml yet
 # ---------------------------------------------------------------------------
 
-def _plan_new(resume: bool, name: str | None = None) -> None:
+def _plan_new(resume: bool, name: str | None = None, cloud: str | None = None) -> None:
     console.print("\n[bold #a78bfa]proj plan[/] — new project\n")
     console.print("[dim]No proj.yaml found — let's figure out what you're building first.[/]\n")
 
@@ -72,10 +77,13 @@ def _plan_new(resume: bool, name: str | None = None) -> None:
     if not name:
         raise typer.Exit(0)
 
-    console.print("\n  Pick a cloud target: [dim](infrastructure constraint — shapes the conversation)[/]")
-    for i, c in enumerate(CLOUDS, 1):
-        console.print(f"    [cyan]{i}[/]. {c}")
-    cloud = _pick(CLOUDS, Prompt.ask("  Choice", default="4"), "cloud")
+    if cloud:
+        console.print(f"  Cloud target: [cyan]{cloud}[/] [dim](from --cloud flag)[/]")
+    else:
+        console.print("\n  Pick a cloud target: [dim](infrastructure constraint — shapes the conversation)[/]")
+        for i, c in enumerate(CLOUDS, 1):
+            console.print(f"    [cyan]{i}[/]. {c}")
+        cloud = _pick(CLOUDS, Prompt.ask("  Choice", default="4"), "cloud")
 
     existing_plan = _read_plan_if_resume(resume)
     _open_claude_session({"name": name, "cloud": cloud}, existing_plan)
