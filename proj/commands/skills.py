@@ -132,7 +132,7 @@ Available clouds: azure, aws, gcp, local
         """\
 Open the proj lazy-mode retro TUI dashboard.
 
-Use the Bash tool to run: `proj lazy`
+Use the Bash tool to run: `proj lazymode`
 
 This opens a full-screen terminal UI with buttons for all proj commands.
 Keyboard shortcuts: P=Plan, N=New, D=Dev, B=Build, L=reLease, S=Status, Q=Quit.

@@ -59,7 +59,6 @@ def status(ctx: typer.Context):
         console.print(f"  Summary: {epic['fields']['summary']}")
         console.print(f"  Status:  {epic['fields']['status']['name']}")
 
-        issues = jira_mod.connect(base_url, token)
         raw    = client.get_epic_issues(epic_key).get("issues", [])
 
         if not raw:

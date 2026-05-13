@@ -18,7 +18,7 @@ app.add_typer(release.app,      name="release", help="Version, deploy, and notif
 app.add_typer(status.app,       name="status",  help="Show project + Jira status.")
 app.add_typer(mcp.app,          name="mcp",     help="Start the MCP server for Claude Code.")
 app.add_typer(help_cmd.app,     name="help",    help="Show all commands and flags.")
-app.add_typer(lazy.app,         name="lazy",    help="TUI dashboard — run any command with a keypress.")
+app.add_typer(lazy.app,         name="lazymode", help="TUI dashboard — run any command with a keypress.")
 app.add_typer(skills.app,       name="skills",  help="Install/uninstall global Claude Code skills.")
 app.add_typer(agent.app,        name="agent",   help="Autonomous agent — describe a goal, it runs the lifecycle.")
 
@@ -34,7 +34,7 @@ def main(ctx: typer.Context):
         console.print("  [cyan]proj release[/]  Version, deploy, and notify")
         console.print("  [cyan]proj status[/]   Show project + Jira status")
         console.print("  [cyan]proj mcp[/]      Start MCP server for Claude Code")
-        console.print("  [cyan]proj lazy[/]     TUI dashboard — everything in one place")
+        console.print("  [cyan]proj lazymode[/]  TUI dashboard — everything in one place")
         console.print("  [cyan]proj skills[/]   Install global Claude Code skills")
         console.print("  [cyan]proj agent[/]    Autonomous agent — describe a goal")
         console.print("\n  Run [bold]proj help[/] for full details and flags.\n")

@@ -5,6 +5,7 @@ from datetime import date
 from pathlib import Path
 
 import typer
+import yaml
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
 
@@ -12,10 +13,13 @@ from proj.config import STACKS, CLOUDS, load_config, print_stack_menu
 from proj.integrations import claude_ai
 from proj.integrations import jira as jira_mod
 
+_PROJ = str(Path(sys.executable).parent / "proj")
+
 app = typer.Typer()
 console = Console()
 
-PLAN_FILE = "PLAN.md"
+PLAN_DIR  = "plans"
+PLAN_FILE = "plans/PLAN.md"
 
 _PLANNING_SYSTEM_PROMPT = """\
 You are in PLANNING MODE. Your role is strictly to help the developer think through what they want to build — ask questions, explore the problem, and design the architecture together.
@@ -23,12 +27,12 @@ You are in PLANNING MODE. Your role is strictly to help the developer think thro
 Rules for this session:
 - Do NOT write any code
 - Do NOT run any commands
-- Do NOT scaffold files or directories (other than PLAN.md when explicitly asked)
+- Do NOT scaffold files or directories (other than plans/PLAN.md when explicitly asked)
 - Do NOT attempt to implement anything
 - Do NOT spawn agents or sub-tasks to implement on your behalf
 - ONLY ask questions, discuss trade-offs, and recommend approaches
 
-When the developer is happy with the plan, write it to PLAN.md using your Write tool. The plan should cover:
+When the developer is happy with the plan, write it to plans/PLAN.md using your Write tool. The plan should cover:
 1. **Problem Summary** — 2-3 sentences restating the problem clearly
 2. **Proposed Solution** — high-level architecture and approach
 3. **Key Components** — the main pieces that need to be built
@@ -85,10 +89,24 @@ def _plan_new(resume: bool, name: str | None = None, cloud: str | None = None) -
             console.print(f"    [cyan]{i}[/]. {c}")
         cloud = _pick(CLOUDS, Prompt.ask("  Choice", default="4"), "cloud")
 
-    existing_plan = _read_plan_if_resume(resume)
-    _open_claude_session({"name": name, "cloud": cloud}, existing_plan)
+    # Bootstrap the project directory + minimal proj.yaml before opening Claude
+    project_dir = Path(name)
+    project_dir.mkdir(exist_ok=True)
+    (project_dir / PLAN_DIR).mkdir(exist_ok=True)
 
-    plan_text = _read_plan_or_warn()
+    proj_yaml = project_dir / "proj.yaml"
+    if not proj_yaml.exists():
+        with open(proj_yaml, "w") as f:
+            yaml.dump(
+                {"name": name, "cloud": cloud, "version": "0.1.0"},
+                f, default_flow_style=False, sort_keys=False,
+            )
+        console.print(f"  [dim]Created {project_dir}/proj.yaml[/]\n")
+
+    existing_plan = _read_plan_if_resume(resume, base=project_dir)
+    _open_claude_session({"name": name, "cloud": cloud}, existing_plan, cwd=project_dir)
+
+    plan_text = _read_plan_or_warn(base=project_dir)
     if not plan_text:
         raise typer.Exit(0)
 
@@ -96,7 +114,7 @@ def _plan_new(resume: bool, name: str | None = None, cloud: str | None = None) -
     services = _pick_stacks_post_session(name)
 
     if not services:
-        console.print(f"\n[dim]When ready:[/] [bold]proj new {name}[/]")
+        console.print(f"\n[dim]Next:[/] [bold]cd {name} && proj new[/] [dim](add stack, Jira, and templates)[/]")
         return
 
     scaffolded: list[str] = []
@@ -105,8 +123,7 @@ def _plan_new(resume: bool, name: str | None = None, cloud: str | None = None) -
         if Confirm.ask(f"  Scaffold [bold]{svc_name}[/] ([cyan]{stack}[/] / [cyan]{cloud}[/])?", default=True):
             console.print()
             subprocess.run(
-                [sys.executable, "-m", "proj", "new", svc_name,
-                 "--stack", stack, "--cloud", cloud],
+                [_PROJ, "new", svc_name, "--stack", stack, "--cloud", cloud],
                 check=False,
             )
             scaffolded.append(svc_name)
@@ -114,6 +131,17 @@ def _plan_new(resume: bool, name: str | None = None, cloud: str | None = None) -
     # Offer Jira story creation from plan using the first scaffolded service's config
     if scaffolded and plan_text:
         _maybe_create_stories_new_project(scaffolded[0], plan_text)
+
+    # Confluence: load config from new project dir and publish plan
+    try:
+        import yaml as _yaml
+        proj_yaml = project_dir / "proj.yaml"
+        if proj_yaml.exists():
+            with open(proj_yaml) as f:
+                saved_config = _yaml.safe_load(f)
+            _publish_plan_to_confluence(saved_config, plan_text, root=project_dir)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -161,6 +189,8 @@ def _plan_existing(config: dict, resume: bool) -> None:
     else:
         console.print("\n  [dim]Jira not configured — skipping story creation.[/]")
 
+    _publish_plan_to_confluence(config, plan_text)
+
     console.print(f"\n[dim]Next:[/] [bold]proj dev[/]")
 
 
@@ -168,7 +198,7 @@ def _plan_existing(config: dict, resume: bool) -> None:
 # Native Claude Code session
 # ---------------------------------------------------------------------------
 
-def _open_claude_session(config: dict, existing_plan: str | None) -> None:
+def _open_claude_session(config: dict, existing_plan: str | None, cwd: Path | None = None) -> None:
     """Hand off to a full interactive Claude Code session with project context pre-loaded."""
     name    = config["name"]
     cloud   = config.get("cloud", "local")
@@ -201,18 +231,24 @@ def _open_claude_session(config: dict, existing_plan: str | None) -> None:
         f"Start by asking what the developer wants to build or solve."
     )
 
+    if cwd is None:
+        Path(PLAN_DIR).mkdir(exist_ok=True)
+
     console.print("\n[bold]Opening Claude Code[/] — planning mode.")
     console.print("[dim]Chat naturally. Claude cannot run commands or write code in this session.[/]")
-    console.print("[dim]When you have a plan, say 'write the plan' — Claude will create PLAN.md.[/]")
+    console.print("[dim]When you have a plan, say 'write the plan' — Claude will create plans/PLAN.md.[/]")
     console.print("[dim]Type /exit or Ctrl+C when done.\n[/]")
 
     try:
-        subprocess.run([
-            "claude",
-            "--allowedTools", "Write",
-            "--append-system-prompt", _PLANNING_SYSTEM_PROMPT,
-            initial_message,
-        ])
+        subprocess.run(
+            [
+                "claude",
+                "--allowedTools", "Write",
+                "--append-system-prompt", _PLANNING_SYSTEM_PROMPT,
+                initial_message,
+            ],
+            cwd=cwd,
+        )
     except FileNotFoundError:
         console.print("[red]`claude` not found.[/] Install Claude Code: https://claude.ai/code")
         raise typer.Exit(1)
@@ -268,12 +304,55 @@ def _pick_stacks_post_session(project_name: str) -> list[tuple[str, str]]:
 
 
 # ---------------------------------------------------------------------------
+# Confluence helper
+# ---------------------------------------------------------------------------
+
+def _publish_plan_to_confluence(config: dict, plan_text: str, root: Path = Path(".")) -> None:
+    from proj.integrations import confluence as conf_mod
+    from proj.config import save_config
+
+    conf_cfg = config.get("confluence", {})
+    base_url  = conf_cfg.get("base_url")
+    token     = conf_cfg.get("token")
+    space_key = conf_cfg.get("space_key")
+
+    if not all([base_url, token, space_key]):
+        return
+
+    if not Confirm.ask("\n  Publish plan to Confluence?", default=True):
+        return
+
+    name  = config["name"]
+    title = f"{name} — Project Plan"
+
+    try:
+        client        = conf_mod.connect(base_url, token)
+        plan_page_id  = conf_cfg.get("plan_page_id")
+        parent_id     = conf_cfg.get("project_page_id")
+
+        if plan_page_id:
+            conf_mod.update_page(client, plan_page_id, title, plan_text)
+            console.print("  [green]Confluence plan page updated[/]")
+        else:
+            plan_page_id = conf_mod.create_page(
+                client, space_key, title, plan_text, parent_id=parent_id
+            )
+            conf_cfg["plan_page_id"] = plan_page_id
+            config["confluence"] = conf_cfg
+            save_config(config, root=root)
+            console.print("  [green]Confluence plan page created[/]")
+
+        console.print(f"  [dim]{conf_mod.get_page_url(base_url, plan_page_id)}[/]")
+    except Exception as e:
+        console.print(f"  [yellow]Confluence publish failed: {e}[/]")
+
+
+# ---------------------------------------------------------------------------
 # Jira story helpers
 # ---------------------------------------------------------------------------
 
 def _maybe_create_stories_new_project(svc_name: str, plan_text: str) -> None:
     """After proj new scaffolds a service, offer Jira story creation if Jira is configured."""
-    import yaml
     proj_yaml = Path(svc_name) / "proj.yaml"
     if not proj_yaml.exists():
         return
@@ -409,19 +488,21 @@ def _post_stories(jira_cfg: dict, stories: list[str]) -> None:
 # Utilities
 # ---------------------------------------------------------------------------
 
-def _read_plan_if_resume(resume: bool) -> str | None:
-    if resume and Path(PLAN_FILE).exists():
-        console.print(f"[dim]Resuming from {PLAN_FILE}[/]\n")
-        return Path(PLAN_FILE).read_text(encoding="utf-8")
+def _read_plan_if_resume(resume: bool, base: Path = Path(".")) -> str | None:
+    p = base / PLAN_FILE
+    if resume and p.exists():
+        console.print(f"[dim]Resuming from {p}[/]\n")
+        return p.read_text(encoding="utf-8")
     return None
 
 
-def _read_plan_or_warn() -> str:
-    if Path(PLAN_FILE).exists():
-        console.print(f"\n[green]Plan saved to[/] [bold]{PLAN_FILE}[/]")
-        return Path(PLAN_FILE).read_text(encoding="utf-8")
+def _read_plan_or_warn(base: Path = Path(".")) -> str:
+    p = base / PLAN_FILE
+    if p.exists():
+        console.print(f"\n[green]Plan saved to[/] [bold]{p}[/]")
+        return p.read_text(encoding="utf-8")
     console.print(
-        f"\n[yellow]No {PLAN_FILE} found.[/] "
+        f"\n[yellow]No {p} found.[/] "
         "Ask Claude to write it next time, or run [bold]proj plan[/] again."
     )
     return ""

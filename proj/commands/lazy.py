@@ -1,8 +1,10 @@
 from __future__ import annotations
 import subprocess
 import sys
+from pathlib import Path
 
 import typer
+from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, Grid, Horizontal, Vertical
@@ -10,6 +12,9 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, Input, Label, Static
 
 from proj.config import load_config
+
+# proj binary lives next to the current interpreter (same pipx venv)
+_PROJ = str(Path(sys.executable).parent / "proj")
 
 app = typer.Typer()
 
@@ -121,10 +126,10 @@ class _LazyDashboard(App):
 
     /* ── Banner ──────────────────────────────────────────────── */
     #banner-box {
-        width: auto;
+        width: 100%;
         height: auto;
         border: double #39ff14;
-        margin: 1 4 0 4;
+        margin: 1 2 0 2;
         padding: 0 2;
         align-horizontal: center;
     }
@@ -133,13 +138,13 @@ class _LazyDashboard(App):
         color: #39ff14;
         text-style: bold;
         text-align: center;
-        width: auto;
+        width: 100%;
     }
 
     #banner-tagline {
         color: #555555;
         text-align: center;
-        width: auto;
+        width: 100%;
         padding-bottom: 0;
     }
 
@@ -147,7 +152,7 @@ class _LazyDashboard(App):
     #ctx-strip {
         width: 100%;
         height: auto;
-        padding: 0 6;
+        padding: 0 4;
         margin-top: 1;
         align-horizontal: center;
     }
@@ -163,8 +168,8 @@ class _LazyDashboard(App):
     #button-grid {
         grid-size: 3;
         grid-gutter: 1 2;
-        padding: 1 4;
-        width: 84;
+        padding: 1 2;
+        width: 100%;
         height: auto;
         margin-top: 1;
     }
@@ -294,7 +299,7 @@ class _LazyDashboard(App):
 
     # --- Button dispatcher ------------------------------------------------
 
-    async def on_button_pressed(self, event: Button.Pressed) -> None:
+    def on_button_pressed(self, event: Button.Pressed) -> None:
         dispatch = {
             "btn-plan":    self.action_run_plan,
             "btn-new":     self.action_run_new,
@@ -305,27 +310,28 @@ class _LazyDashboard(App):
         }
         handler = dispatch.get(event.button.id)
         if handler:
-            await handler()
+            handler()
 
     # --- Shell helper -----------------------------------------------------
 
-    async def _shell(self, *args: str) -> None:
+    @work(thread=True)
+    def _shell(self, *args: str) -> None:
         """Suspend TUI, hand off to interactive subprocess, then restore."""
         with self.suspend():
-            subprocess.run([sys.executable, "-m", "proj", *args])
+            subprocess.run([_PROJ, *args])
 
     # --- Actions ----------------------------------------------------------
 
-    async def action_run_plan(self)    -> None: await self._shell("plan")
-    async def action_run_dev(self)     -> None: await self._shell("dev")
-    async def action_run_build(self)   -> None: await self._shell("build")
-    async def action_run_release(self) -> None: await self._shell("release")
-    async def action_run_status(self)  -> None: await self._shell("status")
+    def action_run_plan(self)    -> None: self._shell("plan")
+    def action_run_dev(self)     -> None: self._shell("dev")
+    def action_run_build(self)   -> None: self._shell("build")
+    def action_run_release(self) -> None: self._shell("release")
+    def action_run_status(self)  -> None: self._shell("status")
 
-    async def action_run_new(self) -> None:
-        async def _on_name(name: str | None) -> None:
+    def action_run_new(self) -> None:
+        def _on_name(name: str | None) -> None:
             if name:
-                await self._shell("new", name)
+                self._shell("new", name)
         self.push_screen(_NameModal(), _on_name)
 
 

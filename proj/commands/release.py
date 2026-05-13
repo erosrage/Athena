@@ -90,6 +90,11 @@ def release(
         else:
             console.print("  [dim]Jira not configured — skipping comment.[/]")
 
+    # --- Confluence release notes ---
+    conf_cfg = config.get("confluence", {})
+    if conf_cfg.get("base_url") and conf_cfg.get("token"):
+        _notify_confluence(conf_cfg, config, name, new_version, log)
+
     # --- Webhook ---
     webhook_url = config.get("webhook_url")
     if webhook_url:
@@ -109,7 +114,7 @@ def _bump_version(version: str, bump: str) -> str:
 
 def _git_log_since_last_tag() -> str:
     result = subprocess.run(
-        ["git", "log", "--oneline", "$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD"],
+        "git log --oneline $(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD",
         shell=True, capture_output=True, text=True,
     )
     return result.stdout.strip() or "Initial release"
@@ -205,7 +210,6 @@ def _notify_jira(jira_cfg: dict, epic_key: str, name: str, version: str, log: st
         targets = ", ".join(filter(None, [epic_key, active_key]))
         console.print(f"  Comment posted on [cyan]{targets}[/]")
 
-        active_key = jira_mod.load_active_ticket()
         if active_key:
             ok = jira_mod.transition_ticket(client, active_key, "Done")
             if ok:
@@ -220,6 +224,34 @@ def _notify_jira(jira_cfg: dict, epic_key: str, name: str, version: str, log: st
             console.print(f"  [dim]{len(remaining)} {'story' if len(remaining) == 1 else 'stories'} still open — Epic stays active[/]")
     except Exception as e:
         console.print(f"  [yellow]Jira notify failed: {e}[/]")
+
+
+def _notify_confluence(conf_cfg: dict, config: dict, name: str, version: str, log: str) -> None:
+    from proj.integrations import confluence as conf_mod
+    try:
+        client           = conf_mod.connect(conf_cfg["base_url"], conf_cfg["token"])
+        space_key        = conf_cfg.get("space_key")
+        parent_id        = conf_cfg.get("project_page_id")
+        release_page_id  = conf_cfg.get("release_page_id")
+        title            = f"{name} — Release Notes"
+        section          = f"## v{version} — {date.today().isoformat()}\n\n{log}\n\n"
+
+        if release_page_id:
+            conf_mod.append_to_page(client, release_page_id, title, section)
+            console.print(f"  [dim]Confluence: release notes updated[/]")
+        else:
+            body            = f"# {name} Release Notes\n\n{section}"
+            release_page_id = conf_mod.create_page(
+                client, space_key, title, body, parent_id=parent_id
+            )
+            conf_cfg["release_page_id"] = release_page_id
+            config["confluence"] = conf_cfg
+            save_config(config)
+            console.print(f"  [dim]Confluence: release notes page created[/]")
+
+        console.print(f"  [dim]{conf_mod.get_page_url(conf_cfg['base_url'], release_page_id)}[/]")
+    except Exception as e:
+        console.print(f"  [yellow]Confluence notify failed: {e}[/]")
 
 
 def _post_webhook(url: str, name: str, version: str, cloud: str) -> None:

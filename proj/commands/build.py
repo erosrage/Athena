@@ -86,7 +86,7 @@ def _container_build(config: dict, name: str, stack: str, multi_arch: bool, push
                   "-t", tag, "-t", tag_ver, "."])
         else:
             _run(["docker", "build", "-t", tag, "-t", tag_ver, "."])
-    except SystemExit:
+    except subprocess.CalledProcessError:
         success = False
 
     if not success:
