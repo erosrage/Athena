@@ -9,7 +9,7 @@ import yaml
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
 
-from proj.config import STACKS, CLOUDS, SECRETS_BACKENDS, print_stack_menu
+from proj.config import STACKS, CLOUDS, SECRETS_BACKENDS, print_stack_menu, load_global_settings, get_nested
 from proj.integrations import jira as jira_mod
 from proj.integrations import claude_code
 from proj.integrations import confluence as conf_mod
@@ -75,9 +75,32 @@ def new(
 
     # --- Jira ---
     console.print("\n[bold]Step 4/5[/] Jira Epic\n")
-    jira_base_url = Prompt.ask("  Jira base URL", default="https://jira.corp.adobe.com")
-    jira_token    = Prompt.ask("  Jira personal access token", password=True)
-    jira_project  = Prompt.ask("  Jira project key (e.g. BPOE)")
+    _gs = load_global_settings()
+
+    jira_base_url = os.environ.get("JIRA_BASE_URL") or get_nested(_gs, "jira.base_url") or ""
+    jira_token    = os.environ.get("JIRA_TOKEN")    or get_nested(_gs, "jira.token")    or ""
+    jira_project  = os.environ.get("JIRA_PROJECT")  or get_nested(_gs, "jira.project_key") or ""
+
+    if os.environ.get("JIRA_BASE_URL"):
+        console.print(f"  Jira base URL: [cyan]{jira_base_url}[/] [dim](from $JIRA_BASE_URL)[/]")
+    elif jira_base_url:
+        console.print(f"  Jira base URL: [cyan]{jira_base_url}[/] [dim](from global settings)[/]")
+    else:
+        jira_base_url = Prompt.ask("  Jira base URL", default="https://jira.corp.adobe.com")
+
+    if os.environ.get("JIRA_TOKEN"):
+        console.print(f"  Jira token: [dim](from $JIRA_TOKEN)[/]")
+    elif jira_token:
+        console.print(f"  Jira token: [dim](from global settings)[/]")
+    else:
+        jira_token = Prompt.ask("  Jira personal access token", password=True)
+
+    if os.environ.get("JIRA_PROJECT"):
+        console.print(f"  Jira project key: [cyan]{jira_project}[/] [dim](from $JIRA_PROJECT)[/]")
+    elif jira_project:
+        console.print(f"  Jira project key: [cyan]{jira_project}[/] [dim](from global settings)[/]")
+    else:
+        jira_project = Prompt.ask("  Jira project key (e.g. BPOE)")
 
     epic_key: str | None = None
     stakeholders: list[str] = []
@@ -117,14 +140,32 @@ def new(
 
     # --- Confluence ---
     console.print("\n[bold]Step 5/5[/] Confluence [dim](Enter to skip)[/]\n")
-    conf_base_url  = Prompt.ask("  Confluence base URL", default="").strip()
     conf_token: str | None      = None
     conf_space: str | None      = None
     conf_project_page_id: str | None = None
 
+    _conf_url_gs  = get_nested(_gs, "confluence.base_url") or ""
+    _conf_tok_gs  = get_nested(_gs, "confluence.token") or ""
+    _conf_spc_gs  = get_nested(_gs, "confluence.space_key") or ""
+
+    if _conf_url_gs:
+        console.print(f"  Confluence base URL: [cyan]{_conf_url_gs}[/] [dim](from global settings)[/]")
+        conf_base_url = _conf_url_gs
+    else:
+        conf_base_url = Prompt.ask("  Confluence base URL", default="").strip()
+
     if conf_base_url:
-        conf_token = Prompt.ask("  Confluence personal access token", password=True)
-        conf_space = Prompt.ask("  Space key (e.g. ENG)").strip() or None
+        if _conf_tok_gs:
+            console.print(f"  Confluence token: [dim](from global settings)[/]")
+            conf_token = _conf_tok_gs
+        else:
+            conf_token = Prompt.ask("  Confluence personal access token", password=True)
+
+        if _conf_spc_gs:
+            console.print(f"  Space key: [cyan]{_conf_spc_gs}[/] [dim](from global settings)[/]")
+            conf_space = _conf_spc_gs
+        else:
+            conf_space = Prompt.ask("  Space key (e.g. ENG)").strip() or None
 
     # --- Scaffold ---
     project_dir = output_dir / name
@@ -173,16 +214,20 @@ def new(
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
     # .env.example
-    (project_dir / ".env.example").write_text(
-        "# Copy to .env and fill in values\n"
-        "# DATABASE_URL=\n"
-        "# SECRET_KEY=\n"
-    )
+    env_example = project_dir / ".env.example"
+    if not env_example.exists():
+        env_example.write_text(
+            "# Copy to .env and fill in values\n"
+            "# DATABASE_URL=\n"
+            "# SECRET_KEY=\n"
+        )
 
     # .gitignore
-    (project_dir / ".gitignore").write_text(
-        ".env\n.venv\n__pycache__\n*.pyc\ndist/\n.DS_Store\n"
-    )
+    gitignore = project_dir / ".gitignore"
+    if not gitignore.exists():
+        gitignore.write_text(
+            ".env\n.venv\n__pycache__\n*.pyc\ndist/\n.DS_Store\n"
+        )
 
     # CLAUDE.md + .claude/ hooks + slash commands
     console.print("  Generating CLAUDE.md and .claude/ config...", end=" ")

@@ -1,6 +1,6 @@
 import typer
 from rich.console import Console
-from proj.commands import plan, new, dev, build, release, status, mcp, help as help_cmd, lazy, skills, agent
+from proj.commands import plan, new, dev, build, release, status, mcp, help as help_cmd, lazy, skills, agent, settings
 
 app = typer.Typer(
     name="proj",
@@ -20,7 +20,8 @@ app.add_typer(mcp.app,          name="mcp",     help="Start the MCP server for C
 app.add_typer(help_cmd.app,     name="help",    help="Show all commands and flags.")
 app.add_typer(lazy.app,         name="lazymode", help="TUI dashboard — run any command with a keypress.")
 app.add_typer(skills.app,       name="skills",  help="Install/uninstall global Claude Code skills.")
-app.add_typer(agent.app,        name="agent",   help="Autonomous agent — describe a goal, it runs the lifecycle.")
+app.add_typer(agent.app,        name="agent",    help="Autonomous agent — describe a goal, it runs the lifecycle.")
+app.add_typer(settings.app,     name="settings", help="View and edit global user settings.")
 
 
 @app.callback(invoke_without_command=True)
@@ -37,6 +38,7 @@ def main(ctx: typer.Context):
         console.print("  [cyan]proj lazymode[/]  TUI dashboard — everything in one place")
         console.print("  [cyan]proj skills[/]   Install global Claude Code skills")
         console.print("  [cyan]proj agent[/]    Autonomous agent — describe a goal")
+        console.print("  [cyan]proj settings[/]  Manage global settings (~/.proj/settings.yml)")
         console.print("\n  Run [bold]proj help[/] for full details and flags.\n")
 
 

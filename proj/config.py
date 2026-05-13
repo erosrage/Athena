@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
+import os
 import yaml
 
 if TYPE_CHECKING:
@@ -365,3 +366,63 @@ def save_config(data: dict, root: Path | None = None) -> None:
         root = find_proj_root()
     with open(root / PROJ_FILE, "w") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+
+# ---------------------------------------------------------------------------
+# Global user settings  (~/.proj/settings.yml)
+# ---------------------------------------------------------------------------
+
+GLOBAL_SETTINGS_DIR  = Path.home() / ".proj"
+GLOBAL_SETTINGS_FILE = GLOBAL_SETTINGS_DIR / "settings.yml"
+
+# (section, leaf, is_sensitive, description)
+SETTINGS_SCHEMA: dict[str, tuple[str, str, bool, str]] = {
+    "jira.base_url":            ("jira",        "base_url",        False, "Jira instance root URL"),
+    "jira.token":               ("jira",        "token",           True,  "Jira personal access token"),
+    "jira.project_key":         ("jira",        "project_key",     False, "Default Jira project key"),
+    "confluence.base_url":      ("confluence",  "base_url",        False, "Confluence instance root URL"),
+    "confluence.token":         ("confluence",  "token",           True,  "Confluence personal access token"),
+    "confluence.space_key":     ("confluence",  "space_key",       False, "Default Confluence space key"),
+    "defaults.stack":           ("defaults",    "stack",           False, "Default stack for proj new"),
+    "defaults.cloud":           ("defaults",    "cloud",           False, "Default cloud target"),
+    "defaults.secrets_backend": ("defaults",    "secrets_backend", False, "Default secrets backend"),
+}
+
+
+def load_global_settings() -> dict:
+    if not GLOBAL_SETTINGS_FILE.exists():
+        return {}
+    try:
+        with open(GLOBAL_SETTINGS_FILE) as f:
+            return yaml.safe_load(f) or {}
+    except Exception:
+        return {}
+
+
+def save_global_settings(data: dict) -> None:
+    GLOBAL_SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+    fd = os.open(GLOBAL_SETTINGS_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+
+def get_nested(data: dict, dotkey: str) -> str | None:
+    section, _, leaf = dotkey.partition(".")
+    return data.get(section, {}).get(leaf)
+
+
+def set_nested(data: dict, dotkey: str, value: str) -> dict:
+    section, _, leaf = dotkey.partition(".")
+    data.setdefault(section, {})[leaf] = value
+    return data
+
+
+def unset_nested(data: dict, dotkey: str) -> tuple[dict, bool]:
+    section, _, leaf = dotkey.partition(".")
+    sec = data.get(section, {})
+    if leaf not in sec:
+        return data, False
+    del sec[leaf]
+    if not sec:
+        data.pop(section, None)
+    return data, True

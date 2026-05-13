@@ -9,7 +9,7 @@ import yaml
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
 
-from proj.config import STACKS, CLOUDS, load_config, print_stack_menu
+from proj.config import STACKS, CLOUDS, load_config, print_stack_menu, load_global_settings, get_nested, save_config
 from proj.integrations import claude_ai
 from proj.integrations import jira as jira_mod
 
@@ -77,7 +77,7 @@ def _plan_new(resume: bool, name: str | None = None, cloud: str | None = None) -
     if name:
         console.print(f"  Project name: [bold]{name}[/]")
     else:
-        name = Prompt.ask("  Project name").strip()
+        name = Prompt.ask("  Project name", default=Path.cwd().name).strip()
     if not name:
         raise typer.Exit(0)
 
@@ -89,22 +89,49 @@ def _plan_new(resume: bool, name: str | None = None, cloud: str | None = None) -
             console.print(f"    [cyan]{i}[/]. {c}")
         cloud = _pick(CLOUDS, Prompt.ask("  Choice", default="4"), "cloud")
 
-    # Bootstrap the project directory + minimal proj.yaml before opening Claude
-    project_dir = Path(name)
-    project_dir.mkdir(exist_ok=True)
+    # Work in-place if the project name matches the current directory name
+    if name == Path.cwd().name:
+        project_dir = Path(".")
+    else:
+        project_dir = Path(name)
+        project_dir.mkdir(exist_ok=True)
     (project_dir / PLAN_DIR).mkdir(exist_ok=True)
 
+    # Front-load Jira: collect epic before opening Claude so context is complete
+    _gs         = load_global_settings()
+    base_url    = get_nested(_gs, "jira.base_url")
+    token       = get_nested(_gs, "jira.token")
+    project_key = get_nested(_gs, "jira.project_key")
+    epic_key: str | None = None
+
+    if base_url and token:
+        console.print("\n[bold]Jira[/]")
+        if project_key:
+            console.print(f"  Project key: [cyan]{project_key}[/] [dim](from global settings)[/]")
+        else:
+            project_key = Prompt.ask("  Project key (e.g. BPOE)", default="").strip() or None
+        raw_epic = Prompt.ask(
+            "  Epic key (e.g. " + (project_key or "BPOE") + "-1), or Enter to skip",
+            default="",
+        ).strip()
+        epic_key = _normalize_jira_key(raw_epic, project_key) if raw_epic else None
+
+    # Bootstrap proj.yaml with full Jira context before opening Claude
+    init_config: dict = {"name": name, "cloud": cloud, "version": "0.1.0"}
+    if base_url and token:
+        init_config["jira"] = {
+            "base_url": base_url, "token": token,
+            "project_key": project_key, "epic_key": epic_key,
+            "stakeholders": [],
+        }
     proj_yaml = project_dir / "proj.yaml"
     if not proj_yaml.exists():
         with open(proj_yaml, "w") as f:
-            yaml.dump(
-                {"name": name, "cloud": cloud, "version": "0.1.0"},
-                f, default_flow_style=False, sort_keys=False,
-            )
+            yaml.dump(init_config, f, default_flow_style=False, sort_keys=False)
         console.print(f"  [dim]Created {project_dir}/proj.yaml[/]\n")
 
     existing_plan = _read_plan_if_resume(resume, base=project_dir)
-    _open_claude_session({"name": name, "cloud": cloud}, existing_plan, cwd=project_dir)
+    _open_claude_session(init_config, existing_plan, cwd=project_dir)
 
     plan_text = _read_plan_or_warn(base=project_dir)
     if not plan_text:
@@ -113,35 +140,33 @@ def _plan_new(resume: bool, name: str | None = None, cloud: str | None = None) -
     # Post-session: ask which stacks were decided
     services = _pick_stacks_post_session(name)
 
-    if not services:
-        console.print(f"\n[dim]Next:[/] [bold]cd {name} && proj new[/] [dim](add stack, Jira, and templates)[/]")
-        return
-
     scaffolded: list[str] = []
-    console.print()
-    for svc_name, stack in services:
-        if Confirm.ask(f"  Scaffold [bold]{svc_name}[/] ([cyan]{stack}[/] / [cyan]{cloud}[/])?", default=True):
-            console.print()
-            subprocess.run(
-                [_PROJ, "new", svc_name, "--stack", stack, "--cloud", cloud],
-                check=False,
-            )
-            scaffolded.append(svc_name)
+    if not services:
+        console.print(f"\n[dim]Tip:[/] run [bold]proj new[/] inside {project_dir} to add stack, templates, and full Jira setup.")
+    else:
+        console.print()
+        for svc_name, stack in services:
+            if Confirm.ask(f"  Scaffold [bold]{svc_name}[/] ([cyan]{stack}[/] / [cyan]{cloud}[/])?", default=True):
+                console.print()
+                subprocess.run(
+                    [_PROJ, "new", svc_name, "--stack", stack, "--cloud", cloud],
+                    check=False,
+                )
+                scaffolded.append(svc_name)
 
-    # Offer Jira story creation from plan using the first scaffolded service's config
-    if scaffolded and plan_text:
-        _maybe_create_stories_new_project(scaffolded[0], plan_text)
-
-    # Confluence: load config from new project dir and publish plan
+    # Reload proj.yaml — proj new may have written full Jira config into it
     try:
         import yaml as _yaml
-        proj_yaml = project_dir / "proj.yaml"
-        if proj_yaml.exists():
-            with open(proj_yaml) as f:
-                saved_config = _yaml.safe_load(f)
-            _publish_plan_to_confluence(saved_config, plan_text, root=project_dir)
+        with open(project_dir / "proj.yaml") as f:
+            config = _yaml.safe_load(f) or {}
     except Exception:
-        pass
+        config = {"name": name, "cloud": cloud, "version": "0.1.0"}
+
+    # Jira: epic + story linking (same flow as _plan_existing)
+    _jira_post_plan(config, plan_text, root=project_dir)
+
+    # Confluence
+    _publish_plan_to_confluence(config, plan_text, root=project_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +180,38 @@ def _plan_existing(config: dict, resume: bool) -> None:
 
     console.print(f"\n[bold #a78bfa]proj plan[/] — [bold]{name}[/] ([cyan]{stack}[/] / [cyan]{cloud}[/])\n")
 
+    # Front-load Jira: resolve credentials + prompt for missing epic before Claude opens
+    _gs         = load_global_settings()
+    jira_cfg    = config.get("jira", {})
+    base_url    = jira_cfg.get("base_url")    or get_nested(_gs, "jira.base_url")
+    token       = jira_cfg.get("token")       or get_nested(_gs, "jira.token")
+    project_key = jira_cfg.get("project_key") or get_nested(_gs, "jira.project_key")
+    epic_key    = jira_cfg.get("epic_key")
+
+    if base_url and token and not epic_key:
+        console.print("[bold]Jira[/]")
+        if project_key:
+            console.print(f"  Project key: [cyan]{project_key}[/] [dim](from global settings)[/]")
+        else:
+            project_key = Prompt.ask("  Project key (e.g. BPOE)", default="").strip() or None
+        raw_epic = Prompt.ask(
+            "  Epic key (e.g. " + (project_key or "BPOE") + "-1), or Enter to skip",
+            default="",
+        ).strip()
+        epic_key = _normalize_jira_key(raw_epic, project_key) if raw_epic else None
+        console.print()
+
+    if base_url and token:
+        config.setdefault("jira", {})
+        config["jira"].update({k: v for k, v in {
+            "base_url": base_url, "token": token,
+            "project_key": project_key, "epic_key": epic_key,
+        }.items() if v})
+        try:
+            save_config(config)
+        except Exception:
+            pass
+
     # Always load existing plan when inside a project — no flag needed
     existing_plan = None
     if Path(PLAN_FILE).exists():
@@ -167,27 +224,7 @@ def _plan_existing(config: dict, resume: bool) -> None:
     if not plan_text:
         raise typer.Exit(0)
 
-    # Jira stories
-    jira_cfg    = config.get("jira", {})
-    base_url    = jira_cfg.get("base_url")
-    token       = jira_cfg.get("token")
-    project_key = jira_cfg.get("project_key")
-    epic_key    = jira_cfg.get("epic_key")
-
-    if all([base_url, token, project_key, epic_key]):
-        console.print(f"\n[bold]Jira stories[/] under [cyan]{epic_key}[/]")
-        console.print("  [cyan]1[/]. Extract stories from plan via Claude")
-        console.print("  [cyan]2[/]. Enter stories manually")
-        console.print("  [cyan]3[/]. Skip")
-        choice = Prompt.ask("  Choice", default="1").strip()
-        if choice == "1":
-            _create_stories_from_plan(config, jira_cfg, plan_text)
-        elif choice == "2":
-            _create_stories_manual(jira_cfg)
-        else:
-            console.print("  [dim]Skipped.[/]")
-    else:
-        console.print("\n  [dim]Jira not configured — skipping story creation.[/]")
+    _jira_post_plan(config, plan_text)
 
     _publish_plan_to_confluence(config, plan_text)
 
@@ -469,6 +506,11 @@ def _post_stories(jira_cfg: dict, stories: list[str]) -> None:
             created.append(key)
         console.print(f"\n  [bold]{len(created)}[/] stories created under [cyan]{epic_key}[/]")
 
+        plan_story_key = _pick_plan_story(client, epic_key, newly_created=created)
+        if plan_story_key:
+            jira_mod.save_active_ticket(plan_story_key)
+            console.print(f"  [dim]Active story set to {plan_story_key}[/]")
+
         if created:
             story_lines = "\n".join(f"- [{k}]" for k in created)
             body = (
@@ -476,12 +518,102 @@ def _post_stories(jira_cfg: dict, stories: list[str]) -> None:
                 f"{story_lines}\n\n"
                 f"_PLAN.md updated. Review stories above before starting development._"
             )
-            active_key = jira_mod.load_active_ticket()
-            jira_mod.post_status_log(client, body, epic_key, active_key)
-            targets = ", ".join(filter(None, [epic_key, active_key]))
+            jira_mod.post_status_log(client, body, epic_key, plan_story_key)
+            targets = ", ".join(filter(None, [epic_key, plan_story_key]))
             console.print(f"  [dim]Jira: planning comment posted on {targets}[/]")
     except Exception as e:
         console.print(f"  [red]Jira story creation failed: {e}[/]")
+
+
+def _jira_post_plan(config: dict, plan_text: str, root: Path = Path(".")) -> None:
+    """Prompt for epic + story linking after any planning session. Used by both _plan_new and _plan_existing."""
+    _gs         = load_global_settings()
+    jira_cfg    = config.get("jira", {})
+    base_url    = jira_cfg.get("base_url")    or get_nested(_gs, "jira.base_url")
+    token       = jira_cfg.get("token")       or get_nested(_gs, "jira.token")
+    project_key = jira_cfg.get("project_key") or get_nested(_gs, "jira.project_key")
+    epic_key    = jira_cfg.get("epic_key")
+
+    if not all([base_url, token]):
+        console.print("\n  [dim]Jira not configured — skipping story creation.[/]")
+        return
+
+    if project_key:
+        console.print(f"  Project key: [cyan]{project_key}[/] [dim](from global settings)[/]")
+    else:
+        project_key = Prompt.ask("  Jira project key (e.g. BPOE)").strip() or None
+    if not epic_key:
+        raw_epic = Prompt.ask(
+            "  Epic key (e.g. " + (project_key or "BPOE") + "-1), or Enter to skip",
+            default="",
+        ).strip()
+        epic_key = _normalize_jira_key(raw_epic, project_key) if raw_epic else None
+
+    # Persist newly resolved values back to proj.yaml
+    config.setdefault("jira", {})
+    config["jira"].update({k: v for k, v in {
+        "base_url": base_url, "token": token,
+        "project_key": project_key, "epic_key": epic_key,
+    }.items() if v})
+    try:
+        save_config(config, root=root)
+    except Exception:
+        pass
+
+    jira_cfg = config["jira"]
+
+    if epic_key:
+        console.print(f"\n[bold]Jira stories[/] under [cyan]{epic_key}[/]")
+    else:
+        console.print("\n[bold]Jira stories[/] [dim](no Epic linked)[/]")
+    console.print("  [cyan]1[/]. Extract stories from plan via Claude")
+    console.print("  [cyan]2[/]. Enter stories manually")
+    console.print("  [cyan]3[/]. Skip")
+    choice = Prompt.ask("  Choice", default="1").strip()
+    if choice == "1":
+        _create_stories_from_plan(config, jira_cfg, plan_text)
+    elif choice == "2":
+        _create_stories_manual(jira_cfg)
+    else:
+        console.print("  [dim]Skipped.[/]")
+        if epic_key:
+            try:
+                client = jira_mod.connect(base_url, token)
+                plan_story_key = _pick_plan_story(client, epic_key)
+                if plan_story_key:
+                    jira_mod.save_active_ticket(plan_story_key)
+                    console.print(f"  [dim]Active story set to {plan_story_key}[/]")
+            except Exception:
+                pass
+
+
+def _pick_plan_story(client, epic_key: str, newly_created: list[str] | None = None) -> str | None:
+    """Show open stories under the epic and let the user pick one to link to this plan."""
+    try:
+        open_stories = jira_mod.get_open_tickets(client, epic_key)
+    except Exception:
+        return None
+
+    if not open_stories:
+        return None
+
+    newly_created = set(newly_created or [])
+    console.print(f"\n  [bold]Link this plan to a story[/] under [cyan]{epic_key}[/]:\n")
+    console.print(f"  [cyan]0[/]. Skip")
+    for i, s in enumerate(open_stories, 1):
+        key     = s["key"]
+        summary = s["fields"]["summary"]
+        tag     = " [dim](new)[/]" if key in newly_created else ""
+        console.print(f"  [cyan]{i}[/]. [cyan]{key}[/] — {summary}{tag}")
+
+    raw = Prompt.ask("\n  Choice", default="0").strip()
+    try:
+        idx = int(raw) - 1
+        if 0 <= idx < len(open_stories):
+            return open_stories[idx]["key"]
+    except ValueError:
+        pass
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -517,6 +649,14 @@ def _pick(options: list[str], raw: str, label: str) -> str:
         console.print(f"[red]Invalid {label} choice — must be 1–{len(options)}.[/]")
         raise typer.Exit(1)
     return options[idx]
+
+
+def _normalize_jira_key(raw: str, project_key: str | None) -> str:
+    """If user enters a bare number (e.g. '949'), prefix with project key (e.g. 'BPOE-949')."""
+    raw = raw.strip().upper()
+    if project_key and raw.isdigit():
+        return f"{project_key.upper()}-{raw}"
+    return raw
 
 
 def _try_load_config() -> dict | None:
