@@ -11,10 +11,9 @@ from textual.containers import Center, Grid, Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, Input, Label, Static
 
-from proj.config import load_config
+from proj.config import load_config, cli_argv
 
-# proj binary lives next to the current interpreter (same pipx venv)
-_PROJ = str(Path(sys.executable).parent / "proj")
+# athena binary lives next to the current interpreter (same pipx venv)
 
 app = typer.Typer()
 
@@ -23,21 +22,21 @@ app = typer.Typer()
 # ---------------------------------------------------------------------------
 
 _BANNER = """\
-██████╗ ██████╗  ██████╗      ██╗
-██╔══██╗██╔══██╗██╔═══██╗     ██║
-██████╔╝██████╔╝██║   ██║     ██║
-██╔═══╝ ██╔══██╗██║   ██║██   ██║
-██║     ██║  ██║╚██████╔╝╚█████╔╝
-╚═╝     ╚═╝  ╚═╝ ╚═════╝  ╚════╝"""
+ █████╗ ████████╗██╗  ██╗███████╗███╗   ██╗ █████╗
+██╔══██╗╚══██╔══╝██║  ██║██╔════╝████╗  ██║██╔══██╗
+███████║   ██║   ███████║█████╗  ██╔██╗ ██║███████║
+██╔══██║   ██║   ██╔══██║██╔══╝  ██║╚██╗██║██╔══██║
+██║  ██║   ██║   ██║  ██║███████╗██║ ╚████║██║  ██║
+╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═╝  ╚═╝"""
 
-_TAGLINE = "L A Z Y   M O D E   ·   © 1994  P R O J  S Y S T E M S"
+_TAGLINE = "L A Z Y   M O D E   ·   © 1994  A T H E N A  S Y S T E M S"
 
 # ---------------------------------------------------------------------------
 # Name-input modal  (retro styled)
 # ---------------------------------------------------------------------------
 
 class _NameModal(ModalScreen[str | None]):
-    """Ask for a project name before running proj new."""
+    """Ask for a project name before running athena new."""
 
     BINDINGS = [("escape", "cancel", "Cancel")]
 
@@ -318,7 +317,7 @@ class _LazyDashboard(App):
     def _shell(self, *args: str) -> None:
         """Suspend TUI, hand off to interactive subprocess, then restore."""
         with self.suspend():
-            subprocess.run([_PROJ, *args])
+            subprocess.run(cli_argv(*args))
 
     # --- Actions ----------------------------------------------------------
 
@@ -341,7 +340,7 @@ class _LazyDashboard(App):
 
 @app.callback(invoke_without_command=True)
 def lazy():
-    """Full-screen retro TUI dashboard — run any proj command with a keypress."""
+    """Full-screen retro TUI dashboard — run any athena command with a keypress."""
     config: dict | None = None
     try:
         config = load_config()

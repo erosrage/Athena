@@ -8,7 +8,7 @@ from rich.table import Table
 app = typer.Typer()
 console = Console()
 
-_SKILLS_DIR = Path.home() / ".claude" / "commands" / "proj"
+_SKILLS_DIR = Path.home() / ".claude" / "commands" / "athena"
 
 # ---------------------------------------------------------------------------
 # Skill definitions — (filename, description, body)
@@ -16,104 +16,104 @@ _SKILLS_DIR = Path.home() / ".claude" / "commands" / "proj"
 
 _SKILLS: list[tuple[str, str, str]] = [
     (
-        "proj-status.md",
+        "athena-status.md",
         "Show current project status",
         """\
-Show the current proj project status.
+Show the current athena project status.
 
-Use the Bash tool to run: `proj status`
+Use the Bash tool to run: `athena status`
 
-Display the full output. If the command fails with "No proj.yaml found", tell the
-user they need to `cd` into a proj project directory or run `proj new <name>` first.
+Display the full output. If the command fails with "No athena.yaml found", tell the
+user they need to `cd` into an athena project directory or run `athena new <name>` first.
 """,
     ),
     (
-        "proj-plan.md",
+        "athena-plan.md",
         "Start a planning session",
         """\
-Start a proj planning session for the current project.
+Start an athena planning session for the current project.
 
-Use the Bash tool to run: `proj plan`
+Use the Bash tool to run: `athena plan`
 
 This opens an interactive Claude Code planning session in a subprocess. Let it run.
 When it exits, summarise any PLAN.md content that was written.
 
-If the user provides a project name (e.g. `/proj-plan MyApp`), run: `proj plan <name>`
-If they also specify a cloud (e.g. `/proj-plan MyApp --cloud azure`), include that flag.
+If the user provides a project name (e.g. `/athena-plan MyApp`), run: `athena plan <name>`
+If they also specify a cloud (e.g. `/athena-plan MyApp --cloud azure`), include that flag.
 """,
     ),
     (
-        "proj-dev.md",
+        "athena-dev.md",
         "Start the dev loop",
         """\
-Start the proj dev loop for the current project.
+Start the athena dev loop for the current project.
 
-Use the Bash tool to run: `proj dev`
+Use the Bash tool to run: `athena dev`
 
 This will show open Jira tickets, let the user pick one, load secrets, and start
-the dev server. If the user wants to skip Jira, run: `proj dev --skip-jira`
-If they specify a ticket (e.g. `/proj-dev PROJ-42`), run: `proj dev --ticket PROJ-42`
+the dev server. If the user wants to skip Jira, run: `athena dev --skip-jira`
+If they specify a ticket (e.g. `/athena-dev PROJ-42`), run: `athena dev --ticket PROJ-42`
 """,
     ),
     (
-        "proj-build.md",
+        "athena-build.md",
         "Build and package the project",
         """\
-Build the current proj project.
+Build the current athena project.
 
-Use the Bash tool to run: `proj build`
+Use the Bash tool to run: `athena build`
 
 Common variants:
-- Multi-arch build: `proj build --multi-arch`
-- Local only (no push): `proj build --no-push`
-- Skip Jira updates: `proj build --no-jira`
+- Multi-arch build: `athena build --multi-arch`
+- Local only (no push): `athena build --no-push`
+- Skip Jira updates: `athena build --no-jira`
 
 Show the full output and report success or failure clearly.
 """,
     ),
     (
-        "proj-release.md",
+        "athena-release.md",
         "Release a new version",
         """\
-Release the current proj project.
+Release the current athena project.
 
-Default: `proj release` (patch bump)
+Default: `athena release` (patch bump)
 
 Common variants:
-- Minor bump: `proj release --bump minor`
-- Major bump: `proj release --bump major`
-- Dry run (preview only): `proj release --dry-run`
-- Skip deploy: `proj release --no-deploy`
-- Skip Jira: `proj release --no-jira`
+- Minor bump: `athena release --bump minor`
+- Major bump: `athena release --bump major`
+- Dry run (preview only): `athena release --dry-run`
+- Skip deploy: `athena release --no-deploy`
+- Skip Jira: `athena release --no-jira`
 
 Use the Bash tool to run the appropriate command based on the user's intent.
 Show the full output including the version bump, changelog update, and Jira comment.
 """,
     ),
     (
-        "proj-tickets.md",
+        "athena-tickets.md",
         "List open Jira tickets",
         """\
-List the open Jira tickets for the current proj project.
+List the open Jira tickets for the current athena project.
 
-Use the Bash tool to run: `proj status`
+Use the Bash tool to run: `athena status`
 
 Parse the Jira ticket table from the output and present it cleanly.
 If no tickets are shown, tell the user the Epic has no open stories.
-If Jira is not configured, explain how to add it: edit `proj.yaml` and add a `jira:` section.
+If Jira is not configured, explain how to add it: edit `athena.yaml` and add a `jira:` section.
 """,
     ),
     (
-        "proj-new.md",
+        "athena-new.md",
         "Scaffold a new project",
         """\
-Scaffold a new proj project.
+Scaffold a new athena project.
 
 Ask the user for the project name if not provided, then use the Bash tool to run:
-`proj new <name>`
+`athena new <name>`
 
 If the user specifies a stack and cloud upfront, use:
-`proj new <name> --stack <stack> --cloud <cloud>`
+`athena new <name> --stack <stack> --cloud <cloud>`
 
 Available stacks: flask, fastapi, django, python-cli, streamlit, gradio, litestar,
 fasthtml, celery, express, nestjs, ts-node, fastify, bun, hono, react, nextjs, vue,
@@ -127,31 +127,31 @@ Available clouds: azure, aws, gcp, local
 """,
     ),
     (
-        "proj-lazy.md",
+        "athena-lazy.md",
         "Open the retro TUI dashboard",
         """\
-Open the proj lazy-mode retro TUI dashboard.
+Open the athena lazy-mode retro TUI dashboard.
 
-Use the Bash tool to run: `proj lazymode`
+Use the Bash tool to run: `athena lazymode`
 
-This opens a full-screen terminal UI with buttons for all proj commands.
+This opens a full-screen terminal UI with buttons for all athena commands.
 Keyboard shortcuts: P=Plan, N=New, D=Dev, B=Build, L=reLease, S=Status, Q=Quit.
 """,
     ),
     (
-        "proj-agent.md",
-        "Run the autonomous proj agent",
+        "athena-agent.md",
+        "Run the autonomous athena agent",
         """\
-Run the proj autonomous agent with a natural language goal.
+Run the athena autonomous agent with a natural language goal.
 
-Use the Bash tool to run: `proj agent "<goal>"`
+Use the Bash tool to run: `athena agent "<goal>"`
 
 Examples:
-- `proj agent "build the project and post the image tag to Jira"`
-- `proj agent "create 3 stories from PLAN.md and transition the first one to In Progress"`
-- `proj agent "do a patch release and notify the team"`
+- `athena agent "build the project and post the image tag to Jira"`
+- `athena agent "create 3 stories from PLAN.md and transition the first one to In Progress"`
+- `athena agent "do a patch release and notify the team"`
 
-The agent will use the proj CLI tools autonomously to accomplish the goal.
+The agent will use the athena CLI tools autonomously to accomplish the goal.
 Use `--max-turns N` to limit turns (default 15).
 """,
     ),
@@ -164,16 +164,16 @@ Use `--max-turns N` to limit turns (default 15).
 
 @app.callback(invoke_without_command=True)
 def skills(ctx: typer.Context):
-    """Manage global Claude Code skills for the proj CLI."""
+    """Manage global Claude Code skills for the athena CLI."""
     if ctx.invoked_subcommand is None:
         _cmd_list()
 
 
 @app.command("install")
 def install():
-    """Install proj skills into ~/.claude/commands/proj/ for use in any Claude Code session."""
+    """Install athena skills into ~/.claude/commands/athena/ for use in any Claude Code session."""
     _SKILLS_DIR.mkdir(parents=True, exist_ok=True)
-    console.print(f"\n[bold #a78bfa]proj skills install[/] → [dim]{_SKILLS_DIR}[/]\n")
+    console.print(f"\n[bold #a78bfa]athena skills install[/] → [dim]{_SKILLS_DIR}[/]\n")
 
     for filename, description, body in _SKILLS:
         path = _SKILLS_DIR / filename
@@ -182,14 +182,14 @@ def install():
 
     console.print(f"\n[bold]{len(_SKILLS)}[/] skills installed.")
     console.print("[dim]Reload Claude Code for changes to take effect.[/]")
-    console.print(f"\nInvoke with: [bold]/proj-status[/], [bold]/proj-plan[/], [bold]/proj-build[/], etc.\n")
+    console.print(f"\nInvoke with: [bold]/athena-status[/], [bold]/athena-plan[/], [bold]/athena-build[/], etc.\n")
 
 
 @app.command("uninstall")
 def uninstall():
-    """Remove all proj skills from ~/.claude/commands/proj/."""
+    """Remove all athena skills from ~/.claude/commands/athena/."""
     if not _SKILLS_DIR.exists():
-        console.print("[dim]No proj skills installed.[/]")
+        console.print("[dim]No athena skills installed.[/]")
         return
 
     removed = 0
@@ -210,8 +210,8 @@ def uninstall():
 
 @app.command("list")
 def _cmd_list():
-    """List installed proj skills."""
-    console.print(f"\n[bold #a78bfa]proj skills[/] — [dim]{_SKILLS_DIR}[/]\n")
+    """List installed athena skills."""
+    console.print(f"\n[bold #a78bfa]athena skills[/] — [dim]{_SKILLS_DIR}[/]\n")
     table = Table(show_header=True, header_style="bold #a78bfa", box=None, padding=(0, 2))
     table.add_column("Skill", style="cyan")
     table.add_column("Description")
@@ -224,5 +224,5 @@ def _cmd_list():
 
     console.print(table)
     if not _SKILLS_DIR.exists():
-        console.print("\n[dim]Run [bold]proj skills install[/] to install.[/]")
+        console.print("\n[dim]Run [bold]athena skills install[/] to install.[/]")
     console.print()

@@ -10,24 +10,24 @@ app = typer.Typer()
 console = Console()
 
 COMMANDS = [
-    ("proj plan",    "pre-scaffold",  "Brainstorm + architect with Claude. Picks stack/cloud, writes PLAN.md, creates Jira stories."),
-    ("proj new",     "scaffold",      "Scaffold project files, proj.yaml, CLAUDE.md, .gitignore, and git init."),
-    ("proj dev",     "develop",       "Load secrets, pick active Jira ticket → In Progress, start dev server."),
-    ("proj build",   "build",         "Build Docker image (or Databricks wheel), push to registry, update Jira ticket."),
-    ("proj release", "release",       "Bump version, update CHANGELOG, tag, deploy to cloud, close Jira stories."),
-    ("proj status",  "observe",       "Show git state, current version, and live Jira Epic + ticket summary."),
-    ("proj mcp",     "integration",   "Start MCP server so Claude Code can call proj commands as tools."),
-    ("proj help",    "meta",          "Show this help screen."),
+    ("athena plan",    "pre-scaffold",  "Brainstorm + architect with Claude. Picks stack/cloud, writes PLAN.md, creates Jira stories."),
+    ("athena new",     "scaffold",      "Scaffold project files, athena.yaml, CLAUDE.md, .gitignore, and git init."),
+    ("athena dev",     "develop",       "Load secrets, pick active Jira ticket → In Progress, start dev server."),
+    ("athena build",   "build",         "Build Docker image (or Databricks wheel), push to registry, update Jira ticket."),
+    ("athena release", "release",       "Bump version, update CHANGELOG, tag, deploy to cloud, close Jira stories."),
+    ("athena status",  "observe",       "Show git state, current version, and live Jira Epic + ticket summary."),
+    ("athena mcp",     "integration",   "Start MCP server so Claude Code can call athena commands as tools."),
+    ("athena help",    "meta",          "Show this help screen."),
 ]
 
-LIFECYCLE = "proj plan → proj new → proj dev → proj build → proj release"
+LIFECYCLE = "athena plan → athena new → athena dev → athena build → athena release"
 
 FLAGS = [
-    ("proj plan --resume",          "Continue refining an existing PLAN.md"),
-    ("proj build --multi-arch",     "Build for linux/amd64 + linux/arm64"),
-    ("proj build --no-push",        "Build image but keep it local"),
-    ("proj release --bump minor",   "Bump minor version instead of patch"),
-    ("proj release --dry-run",      "Preview release without making changes"),
+    ("athena plan --resume",          "Continue refining an existing PLAN.md"),
+    ("athena build --multi-arch",     "Build for linux/amd64 + linux/arm64"),
+    ("athena build --no-push",        "Build image but keep it local"),
+    ("athena release --bump minor",   "Bump minor version instead of patch"),
+    ("athena release --dry-run",      "Preview release without making changes"),
 ]
 
 
@@ -38,7 +38,7 @@ def help_cmd():
     console.print()
     console.print(Panel(
         Text(LIFECYCLE, style="bold cyan", justify="center"),
-        title="[bold #a78bfa]proj[/] — lifecycle",
+        title="[bold #a78bfa]athena[/] — lifecycle",
         border_style="#334155",
         padding=(0, 2),
     ))
@@ -80,5 +80,5 @@ def help_cmd():
 
     console.print(flags_table)
     console.print()
-    console.print("  [dim]Full docs:[/] [bold]proj <command> --help[/]")
+    console.print("  [dim]Full docs:[/] [bold]athena <command> --help[/]")
     console.print()

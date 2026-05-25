@@ -8,6 +8,7 @@ from rich.prompt import Confirm
 
 from proj.config import load_config, STACK_META
 from proj.integrations import jira as jira_mod
+from proj.integrations import cmux as cmux_mod
 
 app = typer.Typer()
 console = Console()
@@ -26,7 +27,9 @@ def build(
     meta   = STACK_META.get(stack, {})
     build_type = meta.get("build", "container")
 
-    console.print(f"\n[bold #a78bfa]proj build[/] — [bold]{name}[/] ([cyan]{stack}[/])\n")
+    console.print(f"\n[bold #a78bfa]athena build[/] — [bold]{name}[/] ([cyan]{stack}[/])\n")
+    cmux_mod.set_progress(0.3, "Building…")
+    cmux_mod.log(f"Build started ({stack})", level="progress", source="athena build")
 
     if build_type == "databricks":
         success = _databricks_build(config)
@@ -40,7 +43,7 @@ def build(
 
     if build_type == "data":
         console.print("[dim]Data/ML stacks produce no build artifact — version tag only.[/]")
-        console.print(f"  Use [bold]proj release[/] to tag and publish.")
+        console.print(f"  Use [bold]athena release[/] to tag and publish.")
         _jira_post_build(config, True, build_type)
         return
 
@@ -54,7 +57,7 @@ def build(
         entry = meta.get("entry", "")
         if entry:
             console.print(f"  Entry point: [cyan]{entry}[/]")
-        console.print("  Use your IDE or platform build command. `proj release` will tag the version.")
+        console.print("  Use your IDE or platform build command. `athena release` will tag the version.")
         _jira_post_build(config, True, build_type)
         return
 
@@ -153,7 +156,7 @@ def _iac_build(stack: str) -> None:
     elif stack == "pulumi":
         console.print("  Run [bold]pulumi preview[/] to preview changes.")
         console.print("  Run [bold]pulumi up[/] to deploy.")
-    console.print("\n  Use [bold]proj release[/] when ready to tag the release.")
+    console.print("\n  Use [bold]athena release[/] when ready to tag the release.")
 
 
 def _swift_build(stack: str, name: str) -> bool:
@@ -213,6 +216,8 @@ def _login(cloud: str, config: dict) -> None:
 
 def _jira_post_build(config: dict, success: bool, build_type: str, details: str = "") -> None:
     from datetime import date
+    _cmux_build_done(config, success, build_type)
+
     jira_cfg   = config.get("jira", {})
     base_url   = jira_cfg.get("base_url")
     token      = jira_cfg.get("token")
@@ -263,6 +268,18 @@ def _jira_post_build(config: dict, success: bool, build_type: str, details: str 
             console.print(f"\n  [yellow]Jira:[/] build-failure comment posted on [cyan]{targets}[/]")
     except Exception as e:
         console.print(f"\n  [yellow]Jira update skipped: {e}[/]")
+
+
+def _cmux_build_done(config: dict, success: bool, build_type: str) -> None:
+    name = config.get("name", "project")
+    if success:
+        cmux_mod.set_progress(1.0, "Build done")
+        cmux_mod.set_status("build", "done", icon="hammer", color="#22c55e", priority=70)
+        cmux_mod.log("Build successful", level="success", source="athena build")
+    else:
+        cmux_mod.clear_progress()
+        cmux_mod.notify("Build failed", f"{build_type} stack", subtitle=name)
+        cmux_mod.log("Build failed", level="error", source="athena build")
 
 
 # ---------------------------------------------------------------------------

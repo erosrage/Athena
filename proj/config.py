@@ -1,12 +1,17 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 import os
+import shutil
+import sys
 import yaml
 
 if TYPE_CHECKING:
     from rich.console import Console
 
-PROJ_FILE = "proj.yaml"
+CLI_NAME = "athena"
+CONFIG_FILE = "athena.yaml"
+LEGACY_CONFIG_FILE = "athena.yaml"
+PROJ_FILE = CONFIG_FILE
 
 # Ordered dict — category → stacks. STACKS is derived from this.
 STACK_CATEGORIES: dict[str, list[str]] = {
@@ -345,35 +350,61 @@ def print_stack_menu(console: "Console") -> None:
             console.print("".join(pairs[i:i+2]))
 
 
+def resolve_config_path(root: Path, *, for_write: bool = False) -> Path:
+    primary = root / CONFIG_FILE
+    legacy = root / LEGACY_CONFIG_FILE
+    if for_write:
+        if legacy.exists() and not primary.exists():
+            return legacy
+        return primary
+    if primary.exists():
+        return primary
+    if legacy.exists():
+        return legacy
+    return primary
+
+
 def find_proj_root() -> Path:
     current = Path.cwd()
     for parent in [current, *current.parents]:
-        if (parent / PROJ_FILE).exists():
+        if (parent / CONFIG_FILE).exists() or (parent / LEGACY_CONFIG_FILE).exists():
             return parent
     raise FileNotFoundError(
-        f"No {PROJ_FILE} found. Run [bold]proj new[/] to initialise a project."
+        f"No {CONFIG_FILE} found. Run [bold]{CLI_NAME} new[/] to initialise a project."
     )
 
 
 def load_config() -> dict:
     root = find_proj_root()
-    with open(root / PROJ_FILE) as f:
+    with open(resolve_config_path(root)) as f:
         return yaml.safe_load(f)
 
 
 def save_config(data: dict, root: Path | None = None) -> None:
     if root is None:
         root = find_proj_root()
-    with open(root / PROJ_FILE, "w") as f:
+    with open(resolve_config_path(root, for_write=True), "w") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
 
+def cli_argv(*args: str) -> list[str]:
+    """Return argv prefix to invoke the athena CLI (installed script or module fallback)."""
+    exe = shutil.which(CLI_NAME)
+    if exe:
+        return [exe, *args]
+    script = Path(sys.executable).parent / CLI_NAME
+    if script.exists():
+        return [str(script), *args]
+    return [sys.executable, "-m", "proj", *args]
+
+
 # ---------------------------------------------------------------------------
-# Global user settings  (~/.proj/settings.yml)
+# Global user settings  (~/.athena/settings.yml, legacy ~/.athena/settings.yml)
 # ---------------------------------------------------------------------------
 
-GLOBAL_SETTINGS_DIR  = Path.home() / ".proj"
+GLOBAL_SETTINGS_DIR  = Path.home() / ".athena"
 GLOBAL_SETTINGS_FILE = GLOBAL_SETTINGS_DIR / "settings.yml"
+_LEGACY_SETTINGS_DIR = Path.home() / ".proj"
 
 # (section, leaf, is_sensitive, description)
 SETTINGS_SCHEMA: dict[str, tuple[str, str, bool, str]] = {
@@ -383,17 +414,27 @@ SETTINGS_SCHEMA: dict[str, tuple[str, str, bool, str]] = {
     "confluence.base_url":      ("confluence",  "base_url",        False, "Confluence instance root URL"),
     "confluence.token":         ("confluence",  "token",           True,  "Confluence personal access token"),
     "confluence.space_key":     ("confluence",  "space_key",       False, "Default Confluence space key"),
-    "defaults.stack":           ("defaults",    "stack",           False, "Default stack for proj new"),
+    "defaults.stack":           ("defaults",    "stack",           False, "Default stack for athena new"),
     "defaults.cloud":           ("defaults",    "cloud",           False, "Default cloud target"),
     "defaults.secrets_backend": ("defaults",    "secrets_backend", False, "Default secrets backend"),
 }
 
 
+def _global_settings_path() -> Path:
+    if GLOBAL_SETTINGS_FILE.exists():
+        return GLOBAL_SETTINGS_FILE
+    legacy = _LEGACY_SETTINGS_DIR / "settings.yml"
+    if legacy.exists():
+        return legacy
+    return GLOBAL_SETTINGS_FILE
+
+
 def load_global_settings() -> dict:
-    if not GLOBAL_SETTINGS_FILE.exists():
+    path = _global_settings_path()
+    if not path.exists():
         return {}
     try:
-        with open(GLOBAL_SETTINGS_FILE) as f:
+        with open(path) as f:
             return yaml.safe_load(f) or {}
     except Exception:
         return {}

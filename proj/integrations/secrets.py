@@ -70,7 +70,7 @@ def _load_azure_keyvault(config: dict) -> dict[str, str]:
 
     vault_url = config.get("keyvault_url")
     if not vault_url:
-        console.print("  [red]keyvault_url not set in proj.yaml[/]")
+        console.print("  [red]keyvault_url not set in athena.yaml[/]")
         return {}
 
     client = SecretClient(vault_url=vault_url, credential=DefaultAzureCredential())
@@ -87,7 +87,7 @@ def _load_azure_keyvault(config: dict) -> dict[str, str]:
 def _load_aws_ssm(config: dict) -> dict[str, str]:
     import boto3
 
-    prefix = config.get("ssm_prefix", f"/{config.get('name', 'proj')}/")
+    prefix = config.get("ssm_prefix", f"/{config.get('name', 'project')}/")
     client = boto3.client("ssm", region_name=config.get("aws_region", "us-east-1"))
 
     paginator = client.get_paginator("get_parameters_by_path")
@@ -103,11 +103,11 @@ def _load_aws_ssm(config: dict) -> dict[str, str]:
 
 def _load_databricks_secrets(config: dict) -> dict[str, str]:
     dbx = config.get("databricks", {})
-    scope = dbx.get("secret_scope", config.get("name", "proj"))
+    scope = dbx.get("secret_scope", config.get("name", "project"))
     keys  = dbx.get("secret_keys", [])
 
     if not keys:
-        console.print(f"  [yellow]No secret_keys listed under databricks.secret_keys in proj.yaml — skipping.[/]")
+        console.print(f"  [yellow]No secret_keys listed under databricks.secret_keys in athena.yaml — skipping.[/]")
         return {}
 
     loaded = {}

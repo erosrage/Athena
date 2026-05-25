@@ -7,7 +7,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from proj.config import load_config, STACKS
+from proj.config import load_config, STACKS, cli_argv
 from proj.integrations import jira as jira_mod
 
 app = typer.Typer()
@@ -16,7 +16,7 @@ console = Console()
 
 @app.callback(invoke_without_command=True)
 def mcp():
-    """Start the proj MCP server for Claude Code integration (runs over stdio)."""
+    """Start the athena MCP server for Claude Code integration (runs over stdio)."""
     try:
         import mcp.server.stdio
         from mcp.server import Server
@@ -26,7 +26,7 @@ def mcp():
         console.print("Run: [bold]pip install mcp[/]")
         raise typer.Exit(1)
 
-    server = Server("proj-mcp")
+    server = Server("athena-mcp")
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:
@@ -36,19 +36,19 @@ def mcp():
                 name="get_project_context",
                 description=(
                     "Returns the current project's name, stack, cloud, version, "
-                    "secrets backend, and linked Jira Epic from proj.yaml."
+                    "secrets backend, and linked Jira Epic from athena.yaml."
                 ),
                 inputSchema={"type": "object", "properties": {}, "required": []},
             ),
             Tool(
                 name="list_stacks",
-                description="Returns the full list of supported proj stacks grouped by category.",
+                description="Returns the full list of supported athena stacks grouped by category.",
                 inputSchema={"type": "object", "properties": {}, "required": []},
             ),
             # ── Plan & CHANGELOG ───────────────────────────────────────────
             Tool(
                 name="get_plan",
-                description="Reads PLAN.md from the current project directory and returns its content.",
+                description="Reads plans/PLAN.md from the current project directory and returns its content.",
                 inputSchema={"type": "object", "properties": {}, "required": []},
             ),
             Tool(
@@ -58,7 +58,7 @@ def mcp():
             ),
             Tool(
                 name="run_status",
-                description="Runs `proj status` and returns the full output including Jira ticket table.",
+                description="Runs `athena status` and returns the full output including Jira ticket table.",
                 inputSchema={"type": "object", "properties": {}, "required": []},
             ),
             # ── Git ────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ def mcp():
             Tool(
                 name="get_active_ticket",
                 description=(
-                    "Returns the currently active Jira ticket key saved by `proj dev`, "
+                    "Returns the currently active Jira ticket key saved by `athena dev`, "
                     "or null if none is set."
                 ),
                 inputSchema={"type": "object", "properties": {}, "required": []},
@@ -121,7 +121,7 @@ def mcp():
                 name="start_ticket",
                 description=(
                     "Transitions a Jira ticket to 'In Progress' and saves it as the active ticket. "
-                    "Equivalent to picking a ticket in `proj dev`."
+                    "Equivalent to picking a ticket in `athena dev`."
                 ),
                 inputSchema={
                     "type": "object",
@@ -160,7 +160,7 @@ def mcp():
             # ── Build / Release ────────────────────────────────────────────
             Tool(
                 name="run_build",
-                description="Runs `proj build` and returns the output.",
+                description="Runs `athena build` and returns the output.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -173,7 +173,7 @@ def mcp():
             ),
             Tool(
                 name="run_release",
-                description="Runs `proj release` — bumps version, tags, deploys, notifies Jira.",
+                description="Runs `athena release` — bumps version, tags, deploys, notifies Jira.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -202,7 +202,7 @@ def mcp():
         # ── Project context ────────────────────────────────────────────────
         if name == "get_project_context":
             if not cfg:
-                return ok("No proj.yaml found in current directory.")
+                return ok("No athena.yaml found in current directory.")
             jira = cfg.get("jira", {})
             result = {
                 "name":            cfg["name"],
@@ -222,9 +222,9 @@ def mcp():
 
         # ── Plan & CHANGELOG ───────────────────────────────────────────────
         if name == "get_plan":
-            p = Path("PLAN.md")
+            p = Path("plans/PLAN.md")
             if not p.exists():
-                return ok("No PLAN.md found in current directory.")
+                return ok("No plans/PLAN.md found in current directory.")
             return ok(p.read_text(encoding="utf-8"))
 
         if name == "get_changelog":
@@ -234,7 +234,7 @@ def mcp():
             return ok(p.read_text(encoding="utf-8"))
 
         if name == "run_status":
-            return ok(_run_capture([sys.executable, "-m", "proj", "status"]))
+            return ok(_run_capture(cli_argv("status")))
 
         # ── Git ────────────────────────────────────────────────────────────
         if name == "get_git_status":
@@ -251,11 +251,11 @@ def mcp():
         # ── Jira ───────────────────────────────────────────────────────────
         if name == "get_jira_epic":
             if not cfg:
-                return ok("No proj.yaml found.")
+                return ok("No athena.yaml found.")
             jira_cfg = cfg.get("jira", {})
             epic_key = jira_cfg.get("epic_key")
             if not epic_key:
-                return ok("No Jira Epic linked in proj.yaml")
+                return ok("No Jira Epic linked in athena.yaml")
             try:
                 client = jira_mod.connect(jira_cfg["base_url"], jira_cfg["token"])
                 epic   = client.issue(epic_key)
@@ -280,13 +280,13 @@ def mcp():
 
         if name == "list_open_tickets":
             if not cfg:
-                return ok("No proj.yaml found.")
+                return ok("No athena.yaml found.")
             jira_cfg = cfg.get("jira", {})
             epic_key = jira_cfg.get("epic_key")
             base_url = jira_cfg.get("base_url")
             token    = jira_cfg.get("token")
             if not all([epic_key, base_url, token]):
-                return ok("Jira not fully configured in proj.yaml.")
+                return ok("Jira not fully configured in athena.yaml.")
             try:
                 client  = jira_mod.connect(base_url, token)
                 tickets = jira_mod.get_open_tickets(client, epic_key)
@@ -316,7 +316,7 @@ def mcp():
 
         if name == "create_jira_ticket":
             if not cfg:
-                return ok("No proj.yaml found.")
+                return ok("No athena.yaml found.")
             jira_cfg   = cfg.get("jira", {})
             epic_key   = jira_cfg.get("epic_key")
             issue_type = arguments.get("issue_type", "Story")
@@ -340,7 +340,7 @@ def mcp():
 
         if name == "start_ticket":
             if not cfg:
-                return ok("No proj.yaml found.")
+                return ok("No athena.yaml found.")
             jira_cfg = cfg.get("jira", {})
             key      = arguments["ticket_key"]
             try:
@@ -355,7 +355,7 @@ def mcp():
 
         if name == "complete_ticket":
             if not cfg:
-                return ok("No proj.yaml found.")
+                return ok("No athena.yaml found.")
             jira_cfg = cfg.get("jira", {})
             epic_key = jira_cfg.get("epic_key")
             key      = arguments.get("ticket_key") or jira_mod.load_active_ticket()
@@ -379,7 +379,7 @@ def mcp():
 
         if name == "add_jira_comment":
             if not cfg:
-                return ok("No proj.yaml found.")
+                return ok("No athena.yaml found.")
             jira_cfg = cfg.get("jira", {})
             try:
                 client = jira_mod.connect(jira_cfg["base_url"], jira_cfg["token"])
@@ -390,14 +390,14 @@ def mcp():
 
         # ── Build / Release ────────────────────────────────────────────────
         if name == "run_build":
-            cmd = [sys.executable, "-m", "proj", "build"]
+            cmd = cli_argv("build")
             if arguments.get("multi_arch"): cmd.append("--multi-arch")
             if arguments.get("no_push"):    cmd.append("--no-push")
             if arguments.get("no_jira"):    cmd.append("--no-jira")
             return ok(_run_capture(cmd))
 
         if name == "run_release":
-            cmd = [sys.executable, "-m", "proj", "release", "--bump", arguments.get("bump", "patch")]
+            cmd = cli_argv("release", "--bump", arguments.get("bump", "patch"))
             if arguments.get("dry_run"):   cmd.append("--dry-run")
             if arguments.get("no_deploy"): cmd.append("--no-deploy")
             if arguments.get("no_jira"):   cmd.append("--no-jira")
@@ -405,9 +405,9 @@ def mcp():
 
         return ok(f"Unknown tool: {name}")
 
-    console.print("[bold #a78bfa]proj mcp[/] — starting on stdio")
+    console.print("[bold #a78bfa]athena mcp[/] — starting on stdio")
     console.print("Add to Claude Code settings:")
-    console.print('  [dim]{"mcpServers": {"proj": {"command": "proj", "args": ["mcp"]}}}[/]\n')
+    console.print('  [dim]{"mcpServers": {"athena": {"command": "athena", "args": ["mcp"]}}}[/]\n')
 
     import asyncio
     asyncio.run(mcp.server.stdio.stdio_server(server))

@@ -8,6 +8,7 @@ from rich.console import Console
 from proj.config import load_config
 from proj.integrations import secrets as secrets_mod
 from proj.integrations import jira as jira_mod
+from proj.integrations import cmux as cmux_mod
 
 app = typer.Typer()
 console = Console()
@@ -111,7 +112,7 @@ def dev(
     stack   = config["stack"]
     backend = config.get("secrets_backend", "dotenv")
 
-    console.print(f"\n[bold #a78bfa]proj dev[/] — [bold]{name}[/] ([cyan]{stack}[/])\n")
+    console.print(f"\n[bold #a78bfa]athena dev[/] — [bold]{name}[/] ([cyan]{stack}[/])\n")
 
     # --- Jira: show open tickets + pick active ---
     active_ticket = _jira_start(config, ticket=ticket, skip=skip_jira)
@@ -183,6 +184,7 @@ def _jira_start(config: dict, ticket: str | None = None, skip: bool = False) -> 
             if ok:
                 console.print(f"  [green]{ticket}[/] → In Progress")
             _comment_dev_start(client, ticket, epic_key)
+            _cmux_dev_start(ticket)
             return ticket
 
         console.print(f"[bold]Jira:[/] open tickets in [cyan]{epic_key}[/]")
@@ -202,11 +204,17 @@ def _jira_start(config: dict, ticket: str | None = None, skip: bool = False) -> 
         if ok:
             console.print(f"  [green]{key}[/] → In Progress")
         _comment_dev_start(client, key, epic_key)
+        _cmux_dev_start(key)
         return key
 
     except Exception as e:
         console.print(f"  [yellow]Jira unavailable: {e}[/]")
         return None
+
+
+def _cmux_dev_start(ticket_key: str) -> None:
+    cmux_mod.set_status("jira", ticket_key, icon="ticket", color="#0ea5e9", priority=90)
+    cmux_mod.log(f"Dev started on {ticket_key}", level="info", source="athena dev")
 
 
 def _comment_dev_start(client, key: str, epic_key: str | None = None) -> None:
@@ -218,7 +226,7 @@ def _comment_dev_start(client, key: str, epic_key: str | None = None) -> None:
         f"- *Ticket:* {key}\n"
         f"- *Branch:* {branch}\n"
         f"- *Date:* {date.today().isoformat()}\n"
-        f"- *Tool:* proj dev"
+        f"- *Tool:* athena dev"
     )
     jira_mod.post_status_log(client, body, key, epic_key)
     targets = ", ".join(filter(None, [key, epic_key]))
@@ -229,7 +237,7 @@ def _databricks_dev(config: dict) -> None:
     dbx = config.get("databricks", {})
     repo_path = dbx.get("repo_path")
     if not repo_path:
-        console.print("[red]databricks.repo_path not set in proj.yaml[/]")
+        console.print("[red]databricks.repo_path not set in athena.yaml[/]")
         console.print("Example: [dim]repo_path: /Repos/you@adobe.com/my-project[/]")
         raise typer.Exit(1)
 

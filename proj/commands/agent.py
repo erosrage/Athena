@@ -10,19 +10,19 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.rule import Rule
 
-from proj.config import load_config, STACKS, CLOUDS
+from proj.config import load_config, STACKS, cli_argv
 from proj.integrations import jira as jira_mod
 
 app = typer.Typer()
 console = Console()
 
 # ---------------------------------------------------------------------------
-# Tool definitions — the proj surface exposed to the agent
+# Tool definitions — the athena surface exposed to the agent
 # ---------------------------------------------------------------------------
 
 _TOOLS = [
     {
-        "name": "proj_status",
+        "name": "athena_status",
         "description": (
             "Get the current project status: name, stack, cloud, version, "
             "secrets backend, git branch, last tag, and Jira Epic with open tickets."
@@ -30,7 +30,7 @@ _TOOLS = [
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
     {
-        "name": "proj_build",
+        "name": "athena_build",
         "description": "Build the project (docker build + registry push, wheel upload, swift build, etc.).",
         "input_schema": {
             "type": "object",
@@ -43,7 +43,7 @@ _TOOLS = [
         },
     },
     {
-        "name": "proj_release",
+        "name": "athena_release",
         "description": "Release: bump version, update CHANGELOG, git tag, deploy, notify Jira.",
         "input_schema": {
             "type": "object",
@@ -99,7 +99,7 @@ _TOOLS = [
     },
     {
         "name": "read_file",
-        "description": "Read a file from the project directory (e.g. PLAN.md, CHANGELOG.md, proj.yaml).",
+        "description": "Read a file from the project directory (e.g. PLAN.md, CHANGELOG.md, athena.yaml).",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -113,7 +113,7 @@ _TOOLS = [
         "description": (
             "Run a shell command and return stdout + stderr. "
             "Use for git, docker inspection, or diagnostic commands. "
-            "Do NOT use to run proj commands — use the dedicated proj_* tools instead."
+            "Do NOT use to run athena commands — use the dedicated athena_* tools instead."
         ),
         "input_schema": {
             "type": "object",
@@ -132,7 +132,7 @@ _TOOLS = [
 
 def _run_proj(*args: str) -> str:
     result = subprocess.run(
-        [sys.executable, "-m", "proj", *args],
+        cli_argv(*args),
         capture_output=True, text=True,
     )
     return (result.stdout + result.stderr).strip()
@@ -140,17 +140,17 @@ def _run_proj(*args: str) -> str:
 
 def _execute_tool(name: str, args: dict, config: dict | None) -> str:
     try:
-        if name == "proj_status":
+        if name == "athena_status":
             return _run_proj("status")
 
-        if name == "proj_build":
+        if name == "athena_build":
             cmd = ["build"]
             if args.get("multi_arch"): cmd.append("--multi-arch")
             if args.get("no_push"):    cmd.append("--no-push")
             if args.get("no_jira"):    cmd.append("--no-jira")
             return _run_proj(*cmd)
 
-        if name == "proj_release":
+        if name == "athena_release":
             cmd = ["release", "--bump", args.get("bump", "patch")]
             if args.get("dry_run"):   cmd.append("--dry-run")
             if args.get("no_deploy"): cmd.append("--no-deploy")
@@ -159,13 +159,13 @@ def _execute_tool(name: str, args: dict, config: dict | None) -> str:
 
         if name == "jira_list_tickets":
             if not config:
-                return "No proj.yaml found."
+                return "No athena.yaml found."
             jira_cfg = config.get("jira", {})
             base_url = jira_cfg.get("base_url")
             token    = jira_cfg.get("token")
             epic_key = jira_cfg.get("epic_key")
             if not all([base_url, token, epic_key]):
-                return "Jira not configured in proj.yaml."
+                return "Jira not configured in athena.yaml."
             client  = jira_mod.connect(base_url, token)
             tickets = jira_mod.get_open_tickets(client, epic_key)
             if not tickets:
@@ -175,7 +175,7 @@ def _execute_tool(name: str, args: dict, config: dict | None) -> str:
 
         if name == "jira_create_ticket":
             if not config:
-                return "No proj.yaml found."
+                return "No athena.yaml found."
             jira_cfg    = config.get("jira", {})
             project_key = jira_cfg.get("project_key")
             epic_key    = jira_cfg.get("epic_key")
@@ -188,7 +188,7 @@ def _execute_tool(name: str, args: dict, config: dict | None) -> str:
 
         if name == "jira_transition_ticket":
             if not config:
-                return "No proj.yaml found."
+                return "No athena.yaml found."
             jira_cfg = config.get("jira", {})
             client = jira_mod.connect(jira_cfg["base_url"], jira_cfg["token"])
             ok = jira_mod.transition_ticket(client, args["ticket_key"], args["status"])
@@ -196,7 +196,7 @@ def _execute_tool(name: str, args: dict, config: dict | None) -> str:
 
         if name == "jira_comment":
             if not config:
-                return "No proj.yaml found."
+                return "No athena.yaml found."
             jira_cfg = config.get("jira", {})
             client = jira_mod.connect(jira_cfg["base_url"], jira_cfg["token"])
             jira_mod.post_comment(client, args["key"], args["body"])
@@ -239,14 +239,14 @@ def _system_prompt(config: dict | None) -> str:
             f"- Today: {date.today().isoformat()}"
         )
     else:
-        ctx = "No proj.yaml found in current directory — project context unavailable."
+        ctx = "No athena.yaml found in current directory — project context unavailable."
 
     return (
-        "You are the proj agent — an autonomous project lifecycle assistant. "
-        "You help developers accomplish multi-step goals using the proj CLI toolkit.\n\n"
+        "You are the athena agent — an autonomous project lifecycle assistant. "
+        "You help developers accomplish multi-step goals using the athena CLI toolkit.\n\n"
         "Rules:\n"
         "- Use the provided tools to accomplish the goal. Do not ask clarifying questions unless truly blocked.\n"
-        "- Prefer proj_* tools over raw shell commands.\n"
+        "- Prefer athena_* tools over raw shell commands.\n"
         "- After each tool call, briefly state what you did and what you plan next.\n"
         "- When the goal is complete, summarise what was accomplished.\n"
         "- If a tool fails, diagnose and try an alternative before giving up.\n\n"
@@ -268,7 +268,7 @@ def _run_agent(goal: str, config: dict | None, max_turns: int, model: str) -> No
     client_ai = anthropic_sdk.Anthropic()
     messages = [{"role": "user", "content": goal}]
 
-    console.print(Rule("[bold #a78bfa]proj agent[/]"))
+    console.print(Rule("[bold #a78bfa]athena agent[/]"))
     console.print(f"[dim]Goal:[/] {goal}\n")
 
     for turn in range(1, max_turns + 1):

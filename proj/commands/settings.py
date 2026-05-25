@@ -31,7 +31,7 @@ def _validate_key(key: str) -> None:
 
 @app.callback(invoke_without_command=True)
 def settings(ctx: typer.Context) -> None:
-    """View and edit global user settings (~/.proj/settings.yml)."""
+    """View and edit global user settings (~/.athena/settings.yml)."""
     if ctx.invoked_subcommand is None:
         _cmd_list()
 
@@ -41,11 +41,11 @@ def _cmd_list() -> None:
     """Show all global settings."""
     data = load_global_settings()
 
-    console.print(f"\n[bold #a78bfa]proj settings[/]  [dim]{GLOBAL_SETTINGS_FILE}[/]\n")
+    console.print(f"\n[bold #a78bfa]athena settings[/]  [dim]{GLOBAL_SETTINGS_FILE}[/]\n")
 
     if not data:
         console.print("[dim]No global settings configured.[/]")
-        console.print("[dim]Run [bold]proj settings set <key> <value>[/] to get started.[/]\n")
+        console.print("[dim]Run [bold]athena settings set <key> <value>[/] to get started.[/]\n")
         return
 
     table = Table(show_header=True, header_style="bold", box=None, padding=(0, 2), show_edge=False)
@@ -66,10 +66,10 @@ def _cmd_list() -> None:
             source = ""
         elif sensitive:
             display = _MASK
-            source = f"(~/.proj/settings.yml)"
+            source = f"(~/.athena/settings.yml)"
         else:
             display = str(value)
-            source = f"(~/.proj/settings.yml)"
+            source = f"(~/.athena/settings.yml)"
 
         table.add_row(dotkey, display, source)
 

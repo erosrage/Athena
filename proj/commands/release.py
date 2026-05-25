@@ -12,6 +12,7 @@ from rich.prompt import Prompt, Confirm
 
 from proj.config import load_config, save_config, STACK_META
 from proj.integrations import jira as jira_mod
+from proj.integrations import cmux as cmux_mod
 
 app = typer.Typer()
 console = Console()
@@ -39,7 +40,7 @@ def release(
     meta   = STACK_META.get(stack, {})
     build_type = meta.get("build", "container")
 
-    console.print(f"\n[bold #a78bfa]proj release[/] — [bold]{name}[/]\n")
+    console.print(f"\n[bold #a78bfa]athena release[/] — [bold]{name}[/]\n")
 
     old_version = config.get("version", "0.1.0")
     new_version = _bump_version(old_version, bump)
@@ -61,7 +62,7 @@ def release(
     # --- Version in manifest files ---
     _bump_manifest_files(new_version, meta)
 
-    # --- proj.yaml version ---
+    # --- athena.yaml version ---
     config["version"] = new_version
     save_config(config)
 
@@ -99,6 +100,10 @@ def release(
     webhook_url = config.get("webhook_url")
     if webhook_url:
         _post_webhook(webhook_url, name, new_version, cloud)
+
+    cmux_mod.set_status("version", f"v{new_version}", icon="tag", color="#a78bfa", priority=85)
+    cmux_mod.notify(f"Released {name}", f"v{new_version}", subtitle=cloud)
+    cmux_mod.log(f"Released v{new_version}", level="success", source="athena release")
 
     console.print(f"\n[bold green]Released {name} v{new_version}[/]")
 

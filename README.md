@@ -11,19 +11,19 @@ Python-based CLI for managing the full project lifecycle across stacks, clouds, 
 ```mermaid
 flowchart TD
     CC["Claude Code"]:::claude
-    CLI["proj CLI"]:::entry
+    CLI["athena CLI"]:::entry
     CC -->|"slash commands + MCP tools"| CLI
-    CLI --> PLAN["① proj plan"]:::stage
-    CLI --> NEW["② proj new"]:::stage
-    CLI --> DEV["③ proj dev"]:::stage
-    CLI --> BUILD["④ proj build"]:::stage
-    CLI --> RELEASE["⑤ proj release"]:::stage
-    CLI --> STATUS["proj status"]:::stage
+    CLI --> PLAN["① athena plan"]:::stage
+    CLI --> NEW["② athena new"]:::stage
+    CLI --> DEV["③ athena dev"]:::stage
+    CLI --> BUILD["④ athena build"]:::stage
+    CLI --> RELEASE["⑤ athena release"]:::stage
+    CLI --> STATUS["athena status"]:::stage
     PLAN --> LLM["claude CLI solutioning loop"]:::llm
     LLM --> PM["Write PLAN.md"]:::action
     LLM --> J4["Generate + create Jira stories"]:::jira
     PLAN -->|"scaffold now?"| NEW
-    NEW --> S["Scaffold + git init + proj.yaml"]:::action
+    NEW --> S["Scaffold + git init + athena.yaml"]:::action
     NEW --> CG["Generate CLAUDE.md + .claude/"]:::claude
     NEW --> J1["Create or link Jira Epic"]:::jira
     DEV --> J5["Jira: pick ticket → In Progress"]:::jira
@@ -42,11 +42,11 @@ flowchart TD
 
 ---
 
-## proj new
+## athena new
 
 ```mermaid
 flowchart TD
-    A["proj new name"]:::entry
+    A["athena new name"]:::entry
     A --> B["Prompt: pick stack"]:::prompt
     B --> C["Prompt: cloud target"]:::prompt
     C --> SB["Prompt: secrets backend"]:::prompt
@@ -58,7 +58,7 @@ flowchart TD
     J3 --> J4["Add watchers + stakeholders"]:::jira
     J4 --> JC["Post comment: project scaffolded (stack/cloud/secrets)"]:::jira
     JC --> D["Copy template files"]:::action
-    D --> E["Write proj.yaml"]:::action
+    D --> E["Write athena.yaml"]:::action
     E --> F["git init + initial commit"]:::action
     F --> G["Create .env.example + .gitignore"]:::action
     G --> H["Generate CLAUDE.md + .claude/"]:::claude
@@ -74,14 +74,14 @@ flowchart TD
 
 ---
 
-## proj plan
+## athena plan
 
 ```mermaid
 flowchart TD
-    A["proj plan"]:::entry
-    A --> M{"proj.yaml exists?"}:::decision
+    A["athena plan"]:::entry
+    A --> M{"athena.yaml exists?"}:::decision
     M -->|"no — new project"| NP1["name arg + --cloud flag\n(prompted if omitted)"]:::prompt
-    M -->|"yes — existing project"| EP1["Read proj.yaml\nAuto-load PLAN.md if it exists"]:::action
+    M -->|"yes — existing project"| EP1["Read athena.yaml\nAuto-load PLAN.md if it exists"]:::action
     NP1 --> NR{"--resume flag?\nPLAN.md exists?"}:::decision
     NR -->|"yes"| RL["Load existing PLAN.md as context"]:::action
     NR -->|"no"| CC
@@ -93,7 +93,7 @@ flowchart TD
     EX --> MX{"Mode?"}:::decision
     MX -->|"new project"| MS["Multi-stack picker\ncomma-separated numbers"]:::prompt
     MS --> SN["Name each service"]:::prompt
-    SN --> SC["proj new per service\n--stack + --cloud pre-filled"]:::action
+    SN --> SC["athena new per service\n--stack + --cloud pre-filled"]:::action
     SC --> JS{"Jira configured\nin first service?"}:::decision
     JS -->|"yes"| SM
     JS -->|"no"| Z["Done"]:::done
@@ -120,12 +120,12 @@ flowchart TD
 
 ---
 
-## proj dev
+## athena dev
 
 ```mermaid
 flowchart TD
-    A["proj dev\n[--ticket KEY] [--skip-jira]"]:::entry
-    A --> B["Read proj.yaml"]:::action
+    A["athena dev\n[--ticket KEY] [--skip-jira]"]:::entry
+    A --> B["Read athena.yaml"]:::action
     B --> SJ{"--skip-jira?"}:::decision
     SJ -->|"yes"| ST
     SJ -->|"no"| TK{"--ticket flag?"}:::decision
@@ -165,11 +165,11 @@ flowchart TD
 
 ---
 
-## proj build
+## athena build
 
 ```mermaid
 flowchart TD
-    A["proj build"]:::entry
+    A["athena build"]:::entry
     A --> BT{"Build archetype"}:::decision
     BT -->|"databricks"| DB1["python -m build --wheel"]:::dbx
     DB1 --> DB2["Upload wheel to DBFS"]:::dbx
@@ -210,11 +210,11 @@ flowchart TD
 
 ---
 
-## proj release
+## athena release
 
 ```mermaid
 flowchart TD
-    A["proj release\n[--bump patch|minor|major] [--no-deploy] [--no-jira]"]:::entry
+    A["athena release\n[--bump patch|minor|major] [--no-deploy] [--no-jira]"]:::entry
     A --> B["--bump flag (default: patch)"]:::action
     B --> C["Bump version in manifest"]:::action
     C --> D["Generate CHANGELOG"]:::action
@@ -268,9 +268,9 @@ flowchart TD
     SC -->|"MCP"| M3["create_jira_ticket"]:::mcp
     SC -->|"MCP"| M4["run_build"]:::mcp
     SC -->|"MCP"| M5["run_release"]:::mcp
-    S1 & M4 --> B["proj build"]:::cli
-    S2 & M5 --> R["proj release"]:::cli
-    S3 --> ST["proj status"]:::cli
+    S1 & M4 --> B["athena build"]:::cli
+    S2 & M5 --> R["athena release"]:::cli
+    S3 --> ST["athena status"]:::cli
     S4 & M3 --> JT["Jira ticket created"]:::cli
     CC --> HK["Stop hook - warns on dirty git"]:::hook
     classDef claude fill:#065f46,stroke:#059669,color:#e2e8f0
@@ -287,22 +287,22 @@ flowchart TD
 
 ```bash
 pip install -e .
-proj new my-project
+athena new my-project
 ```
 
 ## Commands
 
 | Command | Description |
 |---|---|
-| `proj plan [name] [--cloud] [--resume]` | LLM-assisted solutioning via Claude Code CLI — writes PLAN.md, creates Jira stories |
-| `proj new <name> [--stack] [--cloud]` | Scaffold a new project — stack, cloud, secrets, Jira Epic |
-| `proj dev [--ticket KEY] [--skip-jira]` | Pick Jira ticket, load secrets, start dev server |
-| `proj build [--multi-arch] [--no-push]` | Docker build + push to cloud registry (or Databricks wheel upload) |
-| `proj release [--bump patch\|minor\|major] [--no-deploy] [--no-jira] [--dry-run]` | Bump version, deploy, close Jira story, notify stakeholders |
-| `proj status` | Show version, git state, and live Jira Epic + tickets |
-| `proj lazy` | Full-screen retro TUI dashboard — all commands one keypress away |
-| `proj mcp` | Start MCP server for Claude Code integration (stdio) |
-| `proj help` | List all commands, lifecycle order, and common flags |
+| `athena plan [name] [--cloud] [--resume]` | LLM-assisted solutioning via Claude Code CLI — writes PLAN.md, creates Jira stories |
+| `athena new <name> [--stack] [--cloud]` | Scaffold a new project — stack, cloud, secrets, Jira Epic |
+| `athena dev [--ticket KEY] [--skip-jira]` | Pick Jira ticket, load secrets, start dev server |
+| `athena build [--multi-arch] [--no-push]` | Docker build + push to cloud registry (or Databricks wheel upload) |
+| `athena release [--bump patch\|minor\|major] [--no-deploy] [--no-jira] [--dry-run]` | Bump version, deploy, close Jira story, notify stakeholders |
+| `athena status` | Show version, git state, and live Jira Epic + tickets |
+| `athena lazy` | Full-screen retro TUI dashboard — all commands one keypress away |
+| `athena mcp` | Start MCP server for Claude Code integration (stdio) |
+| `athena help` | List all commands, lifecycle order, and common flags |
 
 ## Stacks
 
@@ -324,7 +324,7 @@ proj new my-project
 
 `dotenv` · `sops` · `azure-keyvault` · `aws-ssm` · `databricks-secrets`
 
-## proj.yaml reference
+## athena.yaml reference
 
 ```yaml
 name: my-project
@@ -352,7 +352,7 @@ databricks:
 
 ## Claude Code integration
 
-Each project scaffolded with `proj new` gets:
+Each project scaffolded with `athena new` gets:
 - `CLAUDE.md` — project context loaded automatically on session open
 - `.claude/commands/` — `/build`, `/release`, `/status`, `/jira-ticket` slash commands
 - `.claude/settings.json` — permissions and Stop hook
@@ -361,8 +361,8 @@ To connect the MCP server, add to `~/.claude/settings.json`:
 ```json
 {
   "mcpServers": {
-    "proj": {
-      "command": "proj",
+    "athena": {
+      "command": "athena",
       "args": ["mcp"]
     }
   }

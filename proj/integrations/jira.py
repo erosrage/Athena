@@ -8,7 +8,18 @@ from rich.table import Table
 
 console = Console()
 
-_ACTIVE_TICKET_FILE = ".proj_active_ticket"
+_ACTIVE_TICKET_FILE = ".athena_active_ticket"
+_LEGACY_ACTIVE_TICKET_FILE = ".proj_active_ticket"
+
+
+def _active_ticket_path() -> Path:
+    primary = Path(_ACTIVE_TICKET_FILE)
+    legacy = Path(_LEGACY_ACTIVE_TICKET_FILE)
+    if primary.exists():
+        return primary
+    if legacy.exists():
+        return legacy
+    return primary
 
 
 def connect(base_url: str, token: str) -> Jira:
@@ -125,14 +136,15 @@ def save_active_ticket(key: str) -> None:
 
 
 def load_active_ticket() -> str | None:
-    p = Path(_ACTIVE_TICKET_FILE)
+    p = _active_ticket_path()
     return p.read_text().strip() if p.exists() else None
 
 
 def clear_active_ticket() -> None:
-    p = Path(_ACTIVE_TICKET_FILE)
-    if p.exists():
-        p.unlink()
+    for name in (_ACTIVE_TICKET_FILE, _LEGACY_ACTIVE_TICKET_FILE):
+        p = Path(name)
+        if p.exists():
+            p.unlink()
 
 
 def transition_ticket(jira: Jira, issue_key: str, status_name: str) -> bool:

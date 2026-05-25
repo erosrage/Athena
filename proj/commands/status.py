@@ -22,7 +22,7 @@ def status(ctx: typer.Context):
     cloud   = config["cloud"]
     version = config.get("version", "0.1.0")
 
-    console.print(f"\n[bold #a78bfa]proj status[/] — [bold]{name}[/]\n")
+    console.print(f"\n[bold #a78bfa]athena status[/] — [bold]{name}[/]\n")
 
     # Project summary table
     table = Table(show_header=False, box=None, padding=(0, 2))

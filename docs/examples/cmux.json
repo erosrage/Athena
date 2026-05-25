@@ -1,0 +1,324 @@
+{
+  "actions": {
+    "athena-plan": {
+      "type": "command",
+      "title": "Plan",
+      "subtitle": "athena plan \u2014 solutioning session",
+      "command": "athena plan --resume",
+      "target": "currentTerminal",
+      "keywords": [
+        "plan",
+        "design",
+        "architecture"
+      ]
+    },
+    "athena-dev": {
+      "type": "command",
+      "title": "Dev",
+      "subtitle": "athena dev \u2014 pick ticket, load secrets, start server",
+      "command": "athena dev",
+      "target": "currentTerminal",
+      "keywords": [
+        "dev",
+        "develop",
+        "server"
+      ]
+    },
+    "athena-build": {
+      "type": "command",
+      "title": "Build",
+      "subtitle": "athena build \u2014 package and push",
+      "command": "athena build",
+      "target": "currentTerminal",
+      "keywords": [
+        "build",
+        "docker",
+        "package"
+      ]
+    },
+    "athena-release": {
+      "type": "command",
+      "title": "Release",
+      "subtitle": "athena release \u2014 bump, deploy, notify Jira",
+      "command": "athena release",
+      "target": "currentTerminal",
+      "keywords": [
+        "release",
+        "deploy",
+        "version"
+      ]
+    },
+    "athena-status": {
+      "type": "command",
+      "title": "Status",
+      "subtitle": "athena status \u2014 version, git, Jira epic",
+      "command": "athena status",
+      "target": "currentTerminal",
+      "keywords": [
+        "status",
+        "jira",
+        "health"
+      ]
+    },
+    "athena-claude": {
+      "type": "agent",
+      "title": "Claude (athena)",
+      "subtitle": "Claude Code with athena MCP context",
+      "agent": "claude",
+      "args": [],
+      "target": "newTabInCurrentPane",
+      "keywords": [
+        "claude",
+        "agent",
+        "ai"
+      ]
+    },
+    "athena-dev-loop": {
+      "type": "workspaceCommand",
+      "title": "Dev Loop",
+      "subtitle": "Claude + dev server + preview",
+      "commandName": "Dev Loop",
+      "keywords": [
+        "dev",
+        "loop",
+        "fullstack"
+      ]
+    },
+    "athena-plan-workspace": {
+      "type": "workspaceCommand",
+      "title": "Plan Workspace",
+      "subtitle": "Planning session + plan reader",
+      "commandName": "Plan Workspace",
+      "keywords": [
+        "plan",
+        "design"
+      ]
+    },
+    "athena-story": {
+      "type": "workspaceCommand",
+      "title": "Story Workspace",
+      "subtitle": "Work on a Jira story (set PROJ_TICKET env)",
+      "commandName": "Story Workspace",
+      "keywords": [
+        "story",
+        "ticket",
+        "jira"
+      ]
+    }
+  },
+  "ui": {
+    "surfaceTabBar": {
+      "buttons": [
+        "athena-claude",
+        "athena-dev",
+        "athena-build",
+        "athena-plan",
+        "athena-status"
+      ]
+    }
+  },
+  "commands": [
+    {
+      "name": "Plan Workspace",
+      "description": "Interactive planning session with plan reader pane",
+      "keywords": [
+        "plan",
+        "design",
+        "architecture"
+      ],
+      "workspace": {
+        "name": "Plan \u2014 my-app \u2014 BPOE-84",
+        "cwd": ".",
+        "layout": {
+          "direction": "horizontal",
+          "split": 0.55,
+          "children": [
+            {
+              "pane": {
+                "surfaces": [
+                  {
+                    "type": "terminal",
+                    "name": "Plan",
+                    "command": "athena plan --resume",
+                    "focus": true
+                  }
+                ]
+              }
+            },
+            {
+              "pane": {
+                "surfaces": [
+                  {
+                    "type": "terminal",
+                    "name": "PLAN.md",
+                    "command": "while [ ! -f plans/PLAN.md ]; do echo 'Waiting for plans/PLAN.md...'; sleep 2; done; less +G plans/PLAN.md"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Story Workspace",
+      "description": "Jira story dev loop \u2014 export PROJ_TICKET before opening",
+      "keywords": [
+        "story",
+        "ticket",
+        "jira"
+      ],
+      "workspace": {
+        "name": "Story \u2014 my-app \u2014 BPOE-84",
+        "cwd": ".",
+        "layout": {
+          "direction": "horizontal",
+          "split": 0.4,
+          "children": [
+            {
+              "pane": {
+                "surfaces": [
+                  {
+                    "type": "terminal",
+                    "name": "Claude",
+                    "command": "claude"
+                  }
+                ]
+              }
+            },
+            {
+              "direction": "vertical",
+              "split": 0.6,
+              "children": [
+                {
+                  "pane": {
+                    "surfaces": [
+                      {
+                        "type": "terminal",
+                        "name": "Dev",
+                        "command": "if [ -n \"${PROJ_TICKET:-}\" ]; then athena dev --ticket \"$PROJ_TICKET\"; else echo 'Set PROJ_TICKET (e.g. export PROJ_TICKET=PROJ-42) then re-run'; exec ${SHELL:-/bin/zsh} -l; fi",
+                        "focus": true
+                      }
+                    ]
+                  }
+                },
+                {
+                  "pane": {
+                    "surfaces": [
+                      {
+                        "type": "browser",
+                        "name": "Preview",
+                        "url": "http://localhost:3000"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Dev Loop",
+      "description": "Claude + dev server + browser preview",
+      "keywords": [
+        "dev",
+        "loop",
+        "fullstack"
+      ],
+      "workspace": {
+        "name": "Dev \u2014 my-app \u2014 BPOE-84",
+        "cwd": ".",
+        "layout": {
+          "direction": "horizontal",
+          "split": 0.4,
+          "children": [
+            {
+              "pane": {
+                "surfaces": [
+                  {
+                    "type": "terminal",
+                    "name": "Claude",
+                    "command": "claude",
+                    "focus": true
+                  }
+                ]
+              }
+            },
+            {
+              "direction": "vertical",
+              "split": 0.55,
+              "children": [
+                {
+                  "pane": {
+                    "surfaces": [
+                      {
+                        "type": "terminal",
+                        "name": "Dev",
+                        "command": "athena dev"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "pane": {
+                    "surfaces": [
+                      {
+                        "type": "browser",
+                        "name": "Preview",
+                        "url": "http://localhost:3000"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Build / Release",
+      "description": "Claude for /build and /release plus status shell",
+      "keywords": [
+        "build",
+        "release",
+        "ship"
+      ],
+      "workspace": {
+        "name": "Build \u2014 my-app",
+        "cwd": ".",
+        "layout": {
+          "direction": "horizontal",
+          "split": 0.5,
+          "children": [
+            {
+              "pane": {
+                "surfaces": [
+                  {
+                    "type": "terminal",
+                    "name": "Claude",
+                    "command": "claude",
+                    "focus": true
+                  }
+                ]
+              }
+            },
+            {
+              "pane": {
+                "surfaces": [
+                  {
+                    "type": "terminal",
+                    "name": "Status",
+                    "command": "athena status; exec ${SHELL:-/bin/zsh} -l"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

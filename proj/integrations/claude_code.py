@@ -3,13 +3,15 @@ import json
 from pathlib import Path
 
 from proj.config import STACK_META
+from proj.integrations.cmux_scaffold import write_cmux_scaffold
 
 
 def scaffold(project_dir: Path, config: dict) -> None:
-    """Generate CLAUDE.md and .claude/ folder inside a new project."""
+    """Generate CLAUDE.md, .claude/, and .cmux/ inside a new project."""
     _write_claude_md(project_dir, config)
     _write_settings(project_dir, config)
     _write_commands(project_dir, config)
+    write_cmux_scaffold(project_dir, config)
 
 
 def _write_claude_md(project_dir: Path, config: dict) -> None:
@@ -44,13 +46,13 @@ def _write_claude_md(project_dir: Path, config: dict) -> None:
 
 ## Lifecycle commands
 ```bash
-proj dev              # load secrets + start dev server
-proj build            # build + package ({build_type})
-proj release          # bump patch, deploy, notify Jira
-proj release --bump minor
-proj release --bump major
-proj release --dry-run   # preview without changes
-proj status           # show Jira Epic + open tickets
+athena dev              # load secrets + start dev server
+athena build            # build + package ({build_type})
+athena release          # bump patch, deploy, notify Jira
+athena release --bump minor
+athena release --bump major
+athena release --dry-run   # preview without changes
+athena status           # show Jira Epic + open tickets
 ```
 
 ## Stack notes
@@ -64,7 +66,7 @@ proj status           # show Jira Epic + open tickets
         content += f"""## Databricks
 | Key | Value |
 |---|---|
-| Repo path | `{dbx.get("repo_path", "not set — add databricks.repo_path to proj.yaml")}` |
+| Repo path | `{dbx.get("repo_path", "not set — add databricks.repo_path to athena.yaml")}` |
 | Secret scope | `{dbx.get("secret_scope", name)}` |
 | Wheel upload path | `{dbx.get("wheel_path", f"dbfs:/FileStore/wheels/{name}")}` |
 | Job name | `{dbx.get("job_name", name)}` |
@@ -72,52 +74,52 @@ proj status           # show Jira Epic + open tickets
 
 ### Databricks commands
 ```bash
-proj dev       # sync to Databricks Repos (databricks repos update)
-proj build     # build wheel + upload to DBFS + dbx deploy
-proj release   # bump version + dbx deploy + optional dbx launch smoke run
+athena dev       # sync to Databricks Repos (databricks repos update)
+athena build     # build wheel + upload to DBFS + dbx deploy
+athena release   # bump version + dbx deploy + optional dbx launch smoke run
 ```
 """
     elif build_type == "iac":
         content += f"""## Deployment
 Stack: `{stack}` — infrastructure as code, no container image.
-- `proj build` → runs plan/preview
-- `proj release` → tags the release; run `{'terraform apply' if stack == 'terraform' else 'pulumi up'}` to apply
+- `athena build` → runs plan/preview
+- `athena release` → tags the release; run `{'terraform apply' if stack == 'terraform' else 'pulumi up'}` to apply
 - State backend: configure in `{'backend.tf' if stack == 'terraform' else 'Pulumi.yaml'}`
 """
     elif build_type == "data":
         content += f"""## Deployment
 Stack: `{stack}` — no deployable artifact.
-- `proj build` → no-op (tag only)
-- `proj release` → bumps version and tags the repo
+- `athena build` → no-op (tag only)
+- `athena release` → bumps version and tags the repo
 - Execution: schedule via your platform (Airflow, cron, dbt Cloud, etc.)
 """
     elif build_type == "swift_native":
         content += f"""## Deployment
 Stack: `{stack}` — native Apple platform build.
-- `proj build` → `{'swift build -c release' if stack == 'swift' else 'xcodebuild archive'}`
-- `proj release` → tags the release
+- `athena build` → `{'swift build -c release' if stack == 'swift' else 'xcodebuild archive'}`
+- `athena release` → tags the release
 - Distribution: App Store Connect / TestFlight / direct binary
 - Signing: configure in Xcode project settings
 """
     elif build_type == "native":
         content += f"""## Deployment
 Stack: `{stack}` — platform-native build (no Docker image).
-- `proj build` → informational only; use platform toolchain
-- `proj release` → tags the release
+- `athena build` → informational only; use platform toolchain
+- `athena release` → tags the release
 - Entry point: `{entry}`
 """
     else:
         content += f"""## Deployment target
 Cloud: `{cloud}`
 - Images tagged as `{name}:<git-sha>` and `{name}:<version>`
-- Registry pushed on `proj build --push`
-- Deploy triggered on `proj release`
+- Registry pushed on `athena build --push`
+- Deploy triggered on `athena release`
 """
 
     content += f"""## Secrets
 Backend: `{secrets}`
 - Copy `.env.example` → `.env` and fill in values (dotenv)
-- Or store in your configured backend and run `proj dev` to auto-load
+- Or store in your configured backend and run `athena dev` to auto-load
 """
 
     (project_dir / "CLAUDE.md").write_text(content)
@@ -131,7 +133,7 @@ def _write_settings(project_dir: Path, config: dict) -> None:
     meta       = STACK_META.get(stack, {})
     build_type = meta.get("build", "container")
 
-    allowed = ["Bash(proj:*)", "Bash(git:*)"]
+    allowed = ["Bash(athena:*)", "Bash(git:*)"]
     if build_type == "container":
         allowed.append("Bash(docker:*)")
     elif build_type == "databricks":
@@ -150,7 +152,7 @@ def _write_settings(project_dir: Path, config: dict) -> None:
                     "hooks": [
                         {
                             "type": "command",
-                            "command": "python -c \"import subprocess,sys; r=subprocess.run(['git','status','--porcelain'],capture_output=True,text=True); print('\\n[proj] Uncommitted changes detected. Run: proj build') if r.stdout.strip() else None\""
+                            "command": "python -c \"import subprocess,sys; r=subprocess.run(['git','status','--porcelain'],capture_output=True,text=True); print('\\n[athena] Uncommitted changes detected. Run: athena build') if r.stdout.strip() else None\""
                         }
                     ]
                 }
@@ -183,8 +185,8 @@ def _write_commands(project_dir: Path, config: dict) -> None:
     (commands_dir / "build.md").write_text(
         f"{build_desc}\n\n"
         "Run the following command and stream the output:\n\n"
-        "```bash\nproj build\n```\n\n"
-        "If the user passes `--multi-arch`, run `proj build --multi-arch` instead.\n"
+        "```bash\nathena build\n```\n\n"
+        "If the user passes `--multi-arch`, run `athena build --multi-arch` instead.\n"
         "Report any errors clearly and suggest fixes.\n"
     )
 
@@ -193,7 +195,7 @@ def _write_commands(project_dir: Path, config: dict) -> None:
         "Release a new version of this project.\n\n"
         "Ask the user: patch, minor, or major bump? Default is patch.\n\n"
         "Then run:\n\n"
-        "```bash\nproj release --bump $BUMP_TYPE\n```\n\n"
+        "```bash\nathena release --bump $BUMP_TYPE\n```\n\n"
         "Stream the output. After completion, summarise: new version, Jira Epic updated, "
         "deploy target, and which stakeholders were notified.\n"
     )
@@ -202,7 +204,7 @@ def _write_commands(project_dir: Path, config: dict) -> None:
     (commands_dir / "status.md").write_text(
         "Show the current project status.\n\n"
         "Run the following and display the output in a clean summary:\n\n"
-        "```bash\nproj status\n```\n\n"
+        "```bash\nathena status\n```\n\n"
         "Include: current version, Jira Epic key + open ticket count, "
         "last git tag, and cloud target.\n"
     )
@@ -214,7 +216,5 @@ def _write_commands(project_dir: Path, config: dict) -> None:
         "1. Ticket summary (one line)\n"
         "2. Description (optional)\n"
         "3. Assignee username (optional)\n\n"
-        "Then run:\n\n"
-        "```bash\nproj jira create --summary \"$SUMMARY\" --description \"$DESC\" --assignee \"$USER\"\n```\n\n"
-        "Confirm the created ticket key and link back to Jira.\n"
+        "Use MCP create_jira_ticket or ask the user to run athena plan to add stories via Jira integration.\n"
     )

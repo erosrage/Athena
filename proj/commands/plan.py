@@ -9,11 +9,14 @@ import yaml
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
 
-from proj.config import STACKS, CLOUDS, load_config, print_stack_menu, load_global_settings, get_nested, save_config
+from proj.config import STACKS, CLOUDS, load_config, print_stack_menu, load_global_settings, get_nested, save_config, cli_argv
 from proj.integrations import claude_ai
 from proj.integrations import jira as jira_mod
+from proj.integrations import cmux as cmux_mod
 
-_PROJ = str(Path(sys.executable).parent / "proj")
+
+def _athena_cmd(*args: str) -> list[str]:
+    return cli_argv(*args)
 
 app = typer.Typer()
 console = Console()
@@ -42,8 +45,8 @@ When the developer is happy with the plan, write it to plans/PLAN.md using your 
 
 If the developer asks to start building, implement a story, write code, or begin development:
 - Do NOT start implementing
-- Tell them the plan is ready and they should type /exit to return to the proj CLI
-- Remind them the next step is: proj new <name> to scaffold, then proj dev to start coding\
+- Tell them the plan is ready and they should type /exit to return to the athena CLI
+- Remind them the next step is: athena new <name> to scaffold, then athena dev to start coding\
 """
 
 
@@ -67,12 +70,12 @@ def plan(
 
 
 # ---------------------------------------------------------------------------
-# Pre-scaffold mode — no proj.yaml yet
+# Pre-scaffold mode — no athena.yaml yet
 # ---------------------------------------------------------------------------
 
 def _plan_new(resume: bool, name: str | None = None, cloud: str | None = None) -> None:
-    console.print("\n[bold #a78bfa]proj plan[/] — new project\n")
-    console.print("[dim]No proj.yaml found — let's figure out what you're building first.[/]\n")
+    console.print("\n[bold #a78bfa]athena plan[/] — new project\n")
+    console.print("[dim]No athena.yaml found — let's figure out what you're building first.[/]\n")
 
     if name:
         console.print(f"  Project name: [bold]{name}[/]")
@@ -116,7 +119,7 @@ def _plan_new(resume: bool, name: str | None = None, cloud: str | None = None) -
         ).strip()
         epic_key = _normalize_jira_key(raw_epic, project_key) if raw_epic else None
 
-    # Bootstrap proj.yaml with full Jira context before opening Claude
+    # Bootstrap athena.yaml with full Jira context before opening Claude
     init_config: dict = {"name": name, "cloud": cloud, "version": "0.1.0"}
     if base_url and token:
         init_config["jira"] = {
@@ -124,11 +127,11 @@ def _plan_new(resume: bool, name: str | None = None, cloud: str | None = None) -
             "project_key": project_key, "epic_key": epic_key,
             "stakeholders": [],
         }
-    proj_yaml = project_dir / "proj.yaml"
+    proj_yaml = project_dir / "athena.yaml"
     if not proj_yaml.exists():
         with open(proj_yaml, "w") as f:
             yaml.dump(init_config, f, default_flow_style=False, sort_keys=False)
-        console.print(f"  [dim]Created {project_dir}/proj.yaml[/]\n")
+        console.print(f"  [dim]Created {project_dir}/athena.yaml[/]\n")
 
     existing_plan = _read_plan_if_resume(resume, base=project_dir)
     _open_claude_session(init_config, existing_plan, cwd=project_dir)
@@ -142,22 +145,22 @@ def _plan_new(resume: bool, name: str | None = None, cloud: str | None = None) -
 
     scaffolded: list[str] = []
     if not services:
-        console.print(f"\n[dim]Tip:[/] run [bold]proj new[/] inside {project_dir} to add stack, templates, and full Jira setup.")
+        console.print(f"\n[dim]Tip:[/] run [bold]athena new[/] inside {project_dir} to add stack, templates, and full Jira setup.")
     else:
         console.print()
         for svc_name, stack in services:
             if Confirm.ask(f"  Scaffold [bold]{svc_name}[/] ([cyan]{stack}[/] / [cyan]{cloud}[/])?", default=True):
                 console.print()
                 subprocess.run(
-                    [_PROJ, "new", svc_name, "--stack", stack, "--cloud", cloud],
+                    _athena_cmd("new", svc_name, "--stack", stack, "--cloud", cloud),
                     check=False,
                 )
                 scaffolded.append(svc_name)
 
-    # Reload proj.yaml — proj new may have written full Jira config into it
+    # Reload athena.yaml — athena new may have written full Jira config into it
     try:
         import yaml as _yaml
-        with open(project_dir / "proj.yaml") as f:
+        with open(project_dir / "athena.yaml") as f:
             config = _yaml.safe_load(f) or {}
     except Exception:
         config = {"name": name, "cloud": cloud, "version": "0.1.0"}
@@ -170,7 +173,7 @@ def _plan_new(resume: bool, name: str | None = None, cloud: str | None = None) -
 
 
 # ---------------------------------------------------------------------------
-# Existing project mode — proj.yaml present
+# Existing project mode — athena.yaml present
 # ---------------------------------------------------------------------------
 
 def _plan_existing(config: dict, resume: bool) -> None:
@@ -178,7 +181,7 @@ def _plan_existing(config: dict, resume: bool) -> None:
     stack = config.get("stack", "unknown")
     cloud = config.get("cloud", "local")
 
-    console.print(f"\n[bold #a78bfa]proj plan[/] — [bold]{name}[/] ([cyan]{stack}[/] / [cyan]{cloud}[/])\n")
+    console.print(f"\n[bold #a78bfa]athena plan[/] — [bold]{name}[/] ([cyan]{stack}[/] / [cyan]{cloud}[/])\n")
 
     # Front-load Jira: resolve credentials + prompt for missing epic before Claude opens
     _gs         = load_global_settings()
@@ -228,7 +231,7 @@ def _plan_existing(config: dict, resume: bool) -> None:
 
     _publish_plan_to_confluence(config, plan_text)
 
-    console.print(f"\n[dim]Next:[/] [bold]proj dev[/]")
+    console.print(f"\n[dim]Next:[/] [bold]athena dev[/]")
 
 
 # ---------------------------------------------------------------------------
@@ -389,8 +392,8 @@ def _publish_plan_to_confluence(config: dict, plan_text: str, root: Path = Path(
 # ---------------------------------------------------------------------------
 
 def _maybe_create_stories_new_project(svc_name: str, plan_text: str) -> None:
-    """After proj new scaffolds a service, offer Jira story creation if Jira is configured."""
-    proj_yaml = Path(svc_name) / "proj.yaml"
+    """After athena new scaffolds a service, offer Jira story creation if Jira is configured."""
+    proj_yaml = Path(svc_name) / "athena.yaml"
     if not proj_yaml.exists():
         return
     with open(proj_yaml) as f:
@@ -412,7 +415,7 @@ def _maybe_create_stories_new_project(svc_name: str, plan_text: str) -> None:
     elif choice == "2":
         _create_stories_manual(jira_cfg)
     else:
-        console.print("  [dim]Skipped — run proj plan inside the project later to add stories.[/]")
+        console.print("  [dim]Skipped — run athena plan inside the project later to add stories.[/]")
 
 
 def _create_stories_from_plan(config: dict, jira_cfg: dict, plan_text: str) -> None:
@@ -549,7 +552,7 @@ def _jira_post_plan(config: dict, plan_text: str, root: Path = Path(".")) -> Non
         ).strip()
         epic_key = _normalize_jira_key(raw_epic, project_key) if raw_epic else None
 
-    # Persist newly resolved values back to proj.yaml
+    # Persist newly resolved values back to athena.yaml
     config.setdefault("jira", {})
     config["jira"].update({k: v for k, v in {
         "base_url": base_url, "token": token,
@@ -632,10 +635,12 @@ def _read_plan_or_warn(base: Path = Path(".")) -> str:
     p = base / PLAN_FILE
     if p.exists():
         console.print(f"\n[green]Plan saved to[/] [bold]{p}[/]")
+        cmux_mod.notify("Plan saved", str(p))
+        cmux_mod.log(f"Plan written to {p}", level="success", source="athena plan")
         return p.read_text(encoding="utf-8")
     console.print(
         f"\n[yellow]No {p} found.[/] "
-        "Ask Claude to write it next time, or run [bold]proj plan[/] again."
+        "Ask Claude to write it next time, or run [bold]athena plan[/] again."
     )
     return ""
 
