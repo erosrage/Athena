@@ -56,6 +56,16 @@ def get_page_url(base_url: str, page_id: str) -> str:
     return f"{base_url.rstrip('/')}/pages/viewpage.action?pageId={page_id}"
 
 
+def get_page_content(client: Confluence, page_id: str) -> tuple[str, str]:
+    """Return (title, plain_text_body) for a page."""
+    page  = client.get_page_by_id(page_id, expand="body.view")
+    title = page.get("title", "")
+    html  = page.get("body", {}).get("view", {}).get("value", "")
+    text  = re.sub(r"<[^>]+>", " ", html)
+    text  = re.sub(r"\s+", " ", text).strip()
+    return title, text
+
+
 # ---------------------------------------------------------------------------
 # Markdown → Confluence storage format (XHTML subset)
 # ---------------------------------------------------------------------------

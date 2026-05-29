@@ -35,11 +35,12 @@ def _pick(options: list[str], raw: str, label: str) -> str:
 def new(
     name: str = typer.Argument(..., help="Project name"),
     output_dir: Path = typer.Option(Path.cwd(), "--dir", "-d", help="Where to create the project"),
-    stack_flag: str = typer.Option(None, "--stack", "-s", help="Skip stack picker (set by athena plan)"),
-    cloud_flag: str  = typer.Option(None, "--cloud", "-c", help="Skip cloud picker (set by athena plan)"),
+    stack_flag: str = typer.Option(None, "--stack", "-s", help="Skip stack picker"),
+    cloud_flag: str  = typer.Option(None, "--cloud", "-c", help="Skip cloud picker"),
 ):
-    """Scaffold a new project with stack, cloud, and Jira Epic."""
+    """[dim]Deprecated — use [bold]athena start[/] instead.[/] Scaffold a new project."""
 
+    console.print("[yellow]athena new is deprecated — use [bold]athena start[/] instead.[/]\n")
     console.print(f"\n[bold #a78bfa]athena new[/] — scaffolding [bold]{name}[/]\n")
 
     # --- Stack ---

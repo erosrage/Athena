@@ -10,24 +10,25 @@ app = typer.Typer()
 console = Console()
 
 COMMANDS = [
-    ("athena plan",    "pre-scaffold",  "Brainstorm + architect with Claude. Picks stack/cloud, writes PLAN.md, creates Jira stories."),
-    ("athena new",     "scaffold",      "Scaffold project files, athena.yaml, CLAUDE.md, .gitignore, and git init."),
-    ("athena dev",     "develop",       "Load secrets, pick active Jira ticket → In Progress, start dev server."),
-    ("athena build",   "build",         "Build Docker image (or Databricks wheel), push to registry, update Jira ticket."),
-    ("athena release", "release",       "Bump version, update CHANGELOG, tag, deploy to cloud, close Jira stories."),
-    ("athena status",  "observe",       "Show git state, current version, and live Jira Epic + ticket summary."),
-    ("athena mcp",     "integration",   "Start MCP server so Claude Code can call athena commands as tools."),
-    ("athena help",    "meta",          "Show this help screen."),
+    ("athena start",   "start",      "Wiki, plan, and scaffold a project in one flow. Replaces athena plan + athena new."),
+    ("athena dev",     "develop",    "Load secrets, pick active Jira ticket → In Progress, start dev server."),
+    ("athena build",   "build",      "Build Docker image (or Databricks wheel), push to registry, update Jira ticket."),
+    ("athena release", "release",    "Bump version, update CHANGELOG, tag, deploy to cloud, close Jira stories."),
+    ("athena status",  "observe",    "Show git state, current version, and live Jira Epic + ticket summary."),
+    ("athena mcp",     "integration","Start MCP server so Claude Code can call athena commands as tools."),
+    ("athena help",    "meta",       "Show this help screen."),
+    ("athena plan",    "deprecated", "Deprecated — use athena start instead."),
+    ("athena new",     "deprecated", "Deprecated — use athena start instead."),
 ]
 
-LIFECYCLE = "athena plan → athena new → athena dev → athena build → athena release"
+LIFECYCLE = "athena start → athena dev → athena build → athena release"
 
 FLAGS = [
-    ("athena plan --resume",          "Continue refining an existing PLAN.md"),
-    ("athena build --multi-arch",     "Build for linux/amd64 + linux/arm64"),
-    ("athena build --no-push",        "Build image but keep it local"),
-    ("athena release --bump minor",   "Bump minor version instead of patch"),
-    ("athena release --dry-run",      "Preview release without making changes"),
+    ("athena start --cloud azure",   "Set cloud target (skips the cloud picker)"),
+    ("athena build --multi-arch",    "Build for linux/amd64 + linux/arm64"),
+    ("athena build --no-push",       "Build image but keep it local"),
+    ("athena release --bump minor",  "Bump minor version instead of patch"),
+    ("athena release --dry-run",     "Preview release without making changes"),
 ]
 
 

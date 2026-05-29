@@ -56,7 +56,9 @@ def plan(
     resume: bool = typer.Option(False, "--resume", help="Continue from an existing PLAN.md"),
     cloud:  str  = typer.Option(None, "--cloud", "-c", help="Cloud target: azure|aws|gcp|local (skips cloud picker)"),
 ):
-    """LLM-assisted solutioning — opens a Claude Code session to brainstorm and architect."""
+    """[dim]Deprecated — use [bold]athena start[/] instead.[/] LLM-assisted solutioning."""
+
+    console.print("[yellow]athena plan is deprecated — use [bold]athena start[/] instead.[/]\n")
 
     if cloud and cloud not in CLOUDS:
         console.print(f"[red]Invalid cloud '{cloud}' — must be one of: {', '.join(CLOUDS)}[/]")
