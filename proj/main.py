@@ -31,17 +31,20 @@ def main(ctx: typer.Context):
     if ctx.invoked_subcommand is None:
         c = CLI_NAME
         console.print(f"\n[bold #a78bfa]{c}[/] — project lifecycle manager\n")
-        console.print(f"  [cyan]{c} start[/]    Wiki, plan, and scaffold a project")
-        console.print(f"  [cyan]{c} dev[/]      Start the dev loop")
-        console.print(f"  [cyan]{c} build[/]    Build and package")
-        console.print(f"  [cyan]{c} release[/]  Version, deploy, and notify")
-        console.print(f"  [cyan]{c} status[/]   Show project + Jira status")
-        console.print(f"  [cyan]{c} mcp[/]      Start MCP server for Claude Code")
-        console.print(f"  [cyan]{c} lazymode[/] TUI dashboard — everything in one place")
+        console.print(f"  [dim]Lifecycle (run in order):[/]")
+        console.print(f"  [bold cyan]1. {c} start[/]    Plan with Claude, configure Jira + Confluence, scaffold services")
+        console.print(f"  [bold cyan]2. {c} dev[/]      Load secrets, pick a Jira story → In Progress, start dev server")
+        console.print(f"  [bold cyan]3. {c} build[/]    Build image/wheel/binary, push to registry, update Jira")
+        console.print(f"  [bold cyan]4. {c} release[/]  Bump version, tag, deploy to cloud, close stories")
+        console.print()
+        console.print(f"  [dim]Utilities:[/]")
+        console.print(f"  [cyan]{c} status[/]   Show version, git state, and live Jira Epic summary")
+        console.print(f"  [cyan]{c} agent[/]    Autonomous agent — describe a goal, it runs the lifecycle")
+        console.print(f"  [cyan]{c} lazymode[/] TUI dashboard — run any command with a keypress")
+        console.print(f"  [cyan]{c} mcp[/]      MCP server so Claude Code can call athena as tools")
         console.print(f"  [cyan]{c} skills[/]   Install global Claude Code skills")
-        console.print(f"  [cyan]{c} agent[/]    Autonomous agent — describe a goal")
-        console.print(f"  [cyan]{c} settings[/] Manage global settings (~/.athena/settings.yml)")
-        console.print(f"\n  Run [bold]{c} help[/] for full details and flags.\n")
+        console.print(f"  [cyan]{c} settings[/] Edit global defaults (~/.athena/settings.yml)")
+        console.print(f"\n  Run [bold]{c} help[/] for full details, flags, and examples.\n")
 
 
 if __name__ == "__main__":

@@ -10,25 +10,34 @@ app = typer.Typer()
 console = Console()
 
 COMMANDS = [
-    ("athena start",   "start",      "Wiki, plan, and scaffold a project in one flow. Replaces athena plan + athena new."),
-    ("athena dev",     "develop",    "Load secrets, pick active Jira ticket → In Progress, start dev server."),
-    ("athena build",   "build",      "Build Docker image (or Databricks wheel), push to registry, update Jira ticket."),
-    ("athena release", "release",    "Bump version, update CHANGELOG, tag, deploy to cloud, close Jira stories."),
-    ("athena status",  "observe",    "Show git state, current version, and live Jira Epic + ticket summary."),
-    ("athena mcp",     "integration","Start MCP server so Claude Code can call athena commands as tools."),
-    ("athena help",    "meta",       "Show this help screen."),
-    ("athena plan",    "deprecated", "Deprecated — use athena start instead."),
-    ("athena new",     "deprecated", "Deprecated — use athena start instead."),
+    # Core lifecycle — in execution order
+    ("athena start",    "1 · plan",     "Set cloud target, link Confluence wiki, configure Jira, run a Claude planning session, then scaffold service directories and create Jira stories from the plan."),
+    ("athena dev",      "2 · develop",  "Load secrets, show open Jira stories and set the chosen one → In Progress, then launch the stack-specific dev server (flask, uvicorn, npm run dev, air, cargo watch, etc.)."),
+    ("athena build",    "3 · package",  "Build a Docker image (or Databricks wheel / Swift binary), push to the registry, and post a build summary on the active Jira ticket."),
+    ("athena release",  "4 · ship",     "Bump semver (patch/minor/major), write a CHANGELOG entry, create a git tag, deploy to cloud, close Jira stories, and publish release notes to Confluence."),
+    # Observe & utilities
+    ("athena status",   "observe",      "Print name, version, stack, cloud, git branch, last tag, and the full Jira Epic with every open story and its current status."),
+    ("athena lazymode", "tui",          "Full-screen TUI: live panes for all athena outputs, trigger any lifecycle command with a single keypress."),
+    ("athena agent",    "automate",     "Describe a high-level goal; Claude runs the full lifecycle autonomously — plan → dev → build → release — using athena as its toolset."),
+    ("athena mcp",      "integrate",    "Start an MCP server so Claude Code can call athena start / dev / build / release / status as tools directly from a conversation."),
+    ("athena skills",   "extend",       "Install or uninstall global Claude Code skills (e.g. /review, /security-review) into ~/.claude/skills/."),
+    ("athena settings", "configure",    "View and edit global defaults (~/.athena/settings.yml): Jira URL, Confluence token, secrets backend, preferred cloud."),
+    # Deprecated
+    ("athena plan",     "deprecated",   "Deprecated — use athena start instead."),
+    ("athena new",      "deprecated",   "Deprecated — use athena start instead."),
 ]
 
-LIFECYCLE = "athena start → athena dev → athena build → athena release"
+LIFECYCLE = "1. athena start  →  2. athena dev  →  3. athena build  →  4. athena release"
 
 FLAGS = [
-    ("athena start --cloud azure",   "Set cloud target (skips the cloud picker)"),
-    ("athena build --multi-arch",    "Build for linux/amd64 + linux/arm64"),
-    ("athena build --no-push",       "Build image but keep it local"),
-    ("athena release --bump minor",  "Bump minor version instead of patch"),
-    ("athena release --dry-run",     "Preview release without making changes"),
+    ("athena start --cloud azure",    "Skip the cloud picker — valid values: azure, aws, gcp, local"),
+    ("athena dev --ticket PROJ-42",   "Jump straight to a specific Jira story (skips the interactive picker)"),
+    ("athena dev --skip-jira",        "Start the dev server without touching Jira at all"),
+    ("athena build --multi-arch",     "Build for linux/amd64 + linux/arm64 via Docker buildx"),
+    ("athena build --no-push",        "Build the image locally but skip the registry push"),
+    ("athena release --bump minor",   "Bump the minor version (default is patch)"),
+    ("athena release --dry-run",      "Preview the full release — no files written, no tags, no deploys"),
+    ("athena release --no-deploy",    "Tag and update CHANGELOG but skip the deploy step"),
 ]
 
 
